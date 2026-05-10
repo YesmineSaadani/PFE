@@ -1,11 +1,4 @@
-
-import os
-
-# Create the output directory
-os.makedirs('/mnt/agents/output', exist_ok=True)
-
-# Write the complete Streamlit application
-code = '''import streamlit as st
+import streamlit as st
 import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
@@ -29,7 +22,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-    
+
     /* Root variables */
     :root {
         --primary: #0C447C;
@@ -46,24 +39,24 @@ st.markdown("""
         --bg-secondary: #f8fafc;
         --border: #e5e7eb;
     }
-    
+
     /* Global resets */
     .stApp {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
     }
-    
+
     .main .block-container {
         padding: 2rem 3rem;
         max-width: 1400px;
     }
-    
+
     /* Hide default elements */
     #MainMenu {visibility: hidden;}
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .stDeployButton {display: none !important;}
-    
+
     /* Typography */
     h1 {
         font-family: 'Inter', sans-serif !important;
@@ -73,7 +66,7 @@ st.markdown("""
         letter-spacing: -0.025em !important;
         margin-bottom: 0.5rem !important;
     }
-    
+
     h2 {
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
@@ -82,7 +75,7 @@ st.markdown("""
         margin-top: 2rem !important;
         margin-bottom: 1rem !important;
     }
-    
+
     h3 {
         font-family: 'Inter', sans-serif !important;
         font-weight: 600 !important;
@@ -92,7 +85,7 @@ st.markdown("""
         letter-spacing: 0.05em;
         margin-bottom: 1rem !important;
     }
-    
+
     /* Metric Cards */
     .metric-container {
         background: white;
@@ -103,12 +96,12 @@ st.markdown("""
         transition: all 0.2s ease;
         height: 100%;
     }
-    
+
     .metric-container:hover {
         box-shadow: 0 4px 12px rgba(0,0,0,0.08);
         transform: translateY(-1px);
     }
-    
+
     .metric-value {
         font-size: 2rem;
         font-weight: 700;
@@ -116,13 +109,13 @@ st.markdown("""
         line-height: 1.2;
         margin-bottom: 0.25rem;
     }
-    
+
     .metric-label {
         font-size: 0.875rem;
         color: var(--text-secondary);
         font-weight: 500;
     }
-    
+
     .metric-badge {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -131,22 +124,22 @@ st.markdown("""
         font-weight: 600;
         margin-top: 0.75rem;
     }
-    
+
     .badge-success {
         background: var(--success-light);
         color: var(--success);
     }
-    
+
     .badge-warning {
         background: var(--warning-light);
         color: var(--warning);
     }
-    
+
     .badge-danger {
         background: var(--danger-light);
         color: var(--danger);
     }
-    
+
     /* Cards */
     .card {
         background: white;
@@ -156,7 +149,7 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         margin-bottom: 1rem;
     }
-    
+
     .card-header {
         font-size: 0.75rem;
         font-weight: 600;
@@ -167,7 +160,7 @@ st.markdown("""
         padding-bottom: 0.75rem;
         border-bottom: 1px solid var(--border);
     }
-    
+
     /* Scenario Buttons */
     .scenario-btn {
         background: white;
@@ -180,35 +173,35 @@ st.markdown("""
         width: 100%;
         margin-bottom: 0.5rem;
     }
-    
+
     .scenario-btn:hover {
         border-color: var(--primary);
         background: var(--primary-light);
     }
-    
+
     .scenario-btn.active {
         border-color: var(--primary);
         background: var(--primary-light);
         box-shadow: 0 0 0 3px rgba(12, 68, 124, 0.1);
     }
-    
+
     .scenario-title {
         font-weight: 600;
         font-size: 0.95rem;
         color: var(--text-primary);
         margin-bottom: 0.25rem;
     }
-    
+
     .scenario-desc {
         font-size: 0.8rem;
         color: var(--text-secondary);
     }
-    
+
     /* Sliders */
     .stSlider > div > div > div {
         background: var(--primary) !important;
     }
-    
+
     /* Tables */
     .styled-table {
         width: 100%;
@@ -216,7 +209,7 @@ st.markdown("""
         border-spacing: 0;
         font-size: 0.875rem;
     }
-    
+
     .styled-table th {
         background: var(--bg-secondary);
         padding: 0.75rem 1rem;
@@ -228,17 +221,17 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.05em;
     }
-    
+
     .styled-table td {
         padding: 0.875rem 1rem;
         border-bottom: 1px solid var(--border);
         color: var(--text-primary);
     }
-    
+
     .styled-table tr:hover td {
         background: var(--bg-secondary);
     }
-    
+
     /* Progress bars */
     .progress-container {
         background: #f3f4f6;
@@ -247,13 +240,13 @@ st.markdown("""
         overflow: hidden;
         margin-top: 0.5rem;
     }
-    
+
     .progress-fill {
         height: 100%;
         border-radius: 9999px;
         transition: width 0.5s ease;
     }
-    
+
     /* Risk indicator */
     .risk-indicator {
         display: flex;
@@ -264,14 +257,14 @@ st.markdown("""
         font-weight: 600;
         font-size: 0.875rem;
     }
-    
+
     /* Section divider */
     .section-divider {
         height: 1px;
         background: linear-gradient(90deg, transparent, var(--border), transparent);
         margin: 2rem 0;
     }
-    
+
     /* Flow steps */
     .flow-step {
         display: flex;
@@ -281,7 +274,7 @@ st.markdown("""
         margin-bottom: 0.75rem;
         border-left: 4px solid;
     }
-    
+
     .flow-number {
         width: 32px;
         height: 32px;
@@ -294,7 +287,7 @@ st.markdown("""
         font-size: 0.875rem;
         flex-shrink: 0;
     }
-    
+
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0;
@@ -303,39 +296,39 @@ st.markdown("""
         padding: 0.25rem;
         border: 1px solid var(--border);
     }
-    
+
     .stTabs [data-baseweb="tab"] {
         border-radius: 8px;
         padding: 0.75rem 1.5rem;
         font-weight: 500;
         color: var(--text-secondary);
     }
-    
+
     .stTabs [aria-selected="true"] {
         background: var(--primary) !important;
         color: white !important;
     }
-    
+
     /* Sidebar */
     .css-1d391kg {
         background: white;
     }
-    
+
     /* Custom scrollbar */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
     }
-    
+
     ::-webkit-scrollbar-track {
         background: transparent;
     }
-    
+
     ::-webkit-scrollbar-thumb {
         background: #d1d5db;
         border-radius: 4px;
     }
-    
+
     ::-webkit-scrollbar-thumb:hover {
         background: #9ca3af;
     }
@@ -405,21 +398,21 @@ def calculate_stress(pib_vals, chom_vals, years=[2024, 2025, 2026]):
     """Calculate stress testing projections"""
     npl = NPL_BASELINE
     results = []
-    
+
     for t, (yr, pib, chom) in enumerate(zip(years, pib_vals, chom_vals)):
         covid = 1 if yr == 2020 else 0
         arab = 1 if yr == 2011 else 0
-        
+
         delta_npl = (COEFS['const'] + 
                     COEFS['PIB'] * pib + 
                     COEFS['Chomage_lag1'] * chom + 
                     COEFS['COVID'] * covid + 
                     COEFS['ARAB_SPRING'] * arab)
-        
+
         npl = np.clip(npl + delta_npl, 1.0, 50.0)
         pd_stressed = np.clip(PD_BASELINE * (npl / NPL_BASELINE), 0.001, 0.999)
         el = pd_stressed * LGD * EAD_TOTAL / 1e6
-        
+
         results.append({
             'year': yr,
             'npl': npl,
@@ -429,7 +422,7 @@ def calculate_stress(pib_vals, chom_vals, years=[2024, 2025, 2026]):
             'pib': pib,
             'chom': chom
         })
-    
+
     return results
 
 def get_risk_level(pd):
@@ -491,12 +484,12 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab1:
     st.markdown("<h3>Configuration du scénario</h3>", unsafe_allow_html=True)
-    
+
     # Scenario selection
     col_scen1, col_scen2, col_scen3 = st.columns(3)
-    
+
     scenario_selected = st.session_state.get('scenario', 'Baseline')
-    
+
     with col_scen1:
         if st.button("📗 Baseline", key="btn_base", 
                      type="primary" if scenario_selected == 'Baseline' else "secondary",
@@ -515,16 +508,16 @@ with tab1:
                      use_container_width=True):
             st.session_state.scenario = 'Sévère'
             st.rerun()
-    
+
     if 'scenario' not in st.session_state:
         st.session_state.scenario = 'Baseline'
-    
+
     current_scen = SCENARIOS[st.session_state.scenario]
-    
+
     # Custom parameters
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     col_param1, col_param2, col_param3 = st.columns(3)
-    
+
     with col_param1:
         st.markdown("<div style='font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem;'>PIB 2024 (%)</div>", unsafe_allow_html=True)
         pib_2024 = st.slider("", min_value=-12.0, max_value=6.0, 
@@ -540,7 +533,7 @@ with tab1:
         infl_2024 = st.slider("", min_value=4.0, max_value=14.0, 
                              value=float(current_scen['Inflation'][0]), step=0.5, key="infl_2024",
                              label_visibility="collapsed")
-    
+
     # Auto-fill subsequent years based on scenario pattern
     if st.session_state.scenario == 'Baseline':
         pib_vals = [pib_2024, pib_2024 * 0.5 + 1.0, pib_2024 * 0.3 + 1.5]
@@ -551,22 +544,22 @@ with tab1:
     else:  # Sévère
         pib_vals = [pib_2024, -3.0, 0.5]
         chom_vals = [chom_2024, 19.5, 18.5]
-    
+
     # Calculate results
     results = calculate_stress(pib_vals, chom_vals)
-    
+
     # Key metrics
     st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
     st.markdown("<h3>Indicateurs clés — Horizon 2024-2026</h3>", unsafe_allow_html=True)
-    
+
     max_npl = max(r['npl'] for r in results)
     max_pd = max(r['pd'] for r in results)
     max_el = max(r['el'] for r in results)
     el_current = PD_BASELINE * LGD * EAD_TOTAL / 1e6
     cushion = max(0, max_el - el_current)
-    
+
     col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    
+
     with col_m1:
         npl_color = '#dc2626' if max_npl > 18 else '#d97706' if max_npl > 16.5 else '#16a34a'
         st.markdown(f"""
@@ -581,7 +574,7 @@ with tab1:
                 </span>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col_m2:
         st.markdown(f"""
             <div class="metric-container">
@@ -595,7 +588,7 @@ with tab1:
                 </span>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col_m3:
         cush_color = '#dc2626' if cushion > 500 else '#d97706' if cushion > 200 else '#16a34a'
         st.markdown(f"""
@@ -610,7 +603,7 @@ with tab1:
                 </span>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col_m4:
         st.markdown(f"""
             <div class="metric-container">
@@ -624,17 +617,17 @@ with tab1:
                 </span>
             </div>
         """, unsafe_allow_html=True)
-    
+
     # Charts
     st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
     col_chart1, col_chart2 = st.columns([2, 1])
-    
+
     with col_chart1:
         st.markdown("<h3>Projections NPL 2024-2026</h3>", unsafe_allow_html=True)
-        
+
         # Historical + projected
         fig_npl = go.Figure()
-        
+
         # Historical
         fig_npl.add_trace(go.Scatter(
             x=macro_data['Year'], y=macro_data['NPL'],
@@ -642,21 +635,21 @@ with tab1:
             line=dict(color='#1e3a5f', width=2.5),
             marker=dict(size=6)
         ))
-        
+
         # Projected
         proj_years = [2023] + [r['year'] for r in results]
         proj_npl = [NPL_BASELINE] + [r['npl'] for r in results]
-        
+
         fig_npl.add_trace(go.Scatter(
             x=proj_years, y=proj_npl,
             mode='lines+markers', name=f'Projection {st.session_state.scenario}',
             line=dict(color=current_scen['color'], width=3, dash='dash'),
             marker=dict(size=8, symbol='diamond')
         ))
-        
+
         fig_npl.add_hline(y=NPL_BASELINE, line_dash="dot", line_color="gray", 
                          annotation_text="NPL 2023", annotation_position="right")
-        
+
         fig_npl.update_layout(
             template='plotly_white',
             height=400,
@@ -666,12 +659,12 @@ with tab1:
             yaxis_title="NPL (%)",
             font=dict(family="Inter, sans-serif")
         )
-        
+
         st.plotly_chart(fig_npl, use_container_width=True)
-    
+
     with col_chart2:
         st.markdown("<h3>Répartition EL par année</h3>", unsafe_allow_html=True)
-        
+
         fig_el = go.Figure(data=[
             go.Bar(
                 x=[r['year'] for r in results],
@@ -682,10 +675,10 @@ with tab1:
                 textfont=dict(size=11)
             )
         ])
-        
+
         fig_el.add_hline(y=el_current, line_dash="dot", line_color="gray",
                         annotation_text="EL actuel", annotation_position="right")
-        
+
         fig_el.update_layout(
             template='plotly_white',
             height=400,
@@ -695,13 +688,13 @@ with tab1:
             showlegend=False,
             font=dict(family="Inter, sans-serif")
         )
-        
+
         st.plotly_chart(fig_el, use_container_width=True)
-    
+
     # Detailed table
     st.markdown("<div style='margin-top: 1rem;'></div>", unsafe_allow_html=True)
     st.markdown("<h3>Détail des projections</h3>", unsafe_allow_html=True)
-    
+
     table_data = []
     for r in results:
         table_data.append({
@@ -713,7 +706,7 @@ with tab1:
             'PD stressée': f"{r['pd']:.2%}",
             'EL (M TND)': f"{r['el']:.0f}"
         })
-    
+
     df_table = pd.DataFrame(table_data)
     st.dataframe(df_table, use_container_width=True, hide_index=True)
 
@@ -722,18 +715,18 @@ with tab1:
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab2:
     st.markdown("<h3>Modèle macro-économique NPL</h3>", unsafe_allow_html=True)
-    
+
     col_mod1, col_mod2 = st.columns([2, 1])
-    
+
     with col_mod1:
         # NPL actual vs fitted
         fig_fit = make_subplots(rows=2, cols=1, 
                                subplot_titles=('NPL Observé vs Ajusté', 'Résidus'),
                                vertical_spacing=0.15)
-        
+
         # Calculate fitted values (simplified)
         fitted_npl = macro_data['NPL'].rolling(window=2).mean().fillna(macro_data['NPL'])
-        
+
         fig_fit.add_trace(
             go.Scatter(x=macro_data['Year'], y=macro_data['NPL'],
                       mode='lines+markers', name='Observé',
@@ -746,7 +739,7 @@ with tab2:
                       line=dict(color='#2563EB', width=2, dash='dash')),
             row=1, col=1
         )
-        
+
         residuals = macro_data['NPL'] - fitted_npl
         fig_fit.add_trace(
             go.Bar(x=macro_data['Year'], y=residuals,
@@ -754,7 +747,7 @@ with tab2:
                   name='Résidus'),
             row=2, col=1
         )
-        
+
         fig_fit.update_layout(
             template='plotly_white',
             height=500,
@@ -762,9 +755,9 @@ with tab2:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             font=dict(family="Inter, sans-serif")
         )
-        
+
         st.plotly_chart(fig_fit, use_container_width=True)
-    
+
     with col_mod2:
         st.markdown("""
             <div class="card">
@@ -781,7 +774,7 @@ with tab2:
                     <div><strong>HAC :</strong> Newey-West (2 lags) ✓</div>
                 </div>
             </div>
-            
+
             <div class="card" style="margin-top: 1rem;">
                 <div class="card-header">Coefficients (HAC)</div>
                 <table style="width: 100%; font-size: 0.85rem;">
@@ -818,14 +811,14 @@ with tab2:
                 </table>
             </div>
         """, unsafe_allow_html=True)
-    
+
     # Correlation matrix
     st.markdown("<div style='margin-top: 1.5rem;'></div>", unsafe_allow_html=True)
     st.markdown("<h3>Matrice de corrélation des variables macro</h3>", unsafe_allow_html=True)
-    
+
     corr_cols = ['NPL', 'PIB', 'Chomage', 'Inflation']
     corr_matrix = macro_data[corr_cols].corr()
-    
+
     fig_corr = px.imshow(corr_matrix, 
                          text_auto='.2f',
                          color_continuous_scale='RdBu_r',
@@ -839,10 +832,10 @@ with tab2:
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab3:
     st.markdown("<h3>Validation du modèle Probit — Stage 2</h3>", unsafe_allow_html=True)
-    
+
     # Validation metrics
     col_v1, col_v2, col_v3, col_v4, col_v5 = st.columns(5)
-    
+
     validations = [
         ("AUC-ROC", "0.9427", "> 0.80", True),
         ("Gini", "0.8854", "> 0.50", True),
@@ -850,7 +843,7 @@ with tab3:
         ("CV std", "0.0014", "< 0.05", True),
         ("Brier Skill", "0.3674", "> 0.25", True)
     ]
-    
+
     cols = [col_v1, col_v2, col_v3, col_v4, col_v5]
     for col, (name, val, thresh, ok) in zip(cols, validations):
         with col:
@@ -864,18 +857,18 @@ with tab3:
                     </div>
                 </div>
             """, unsafe_allow_html=True)
-    
+
     # Scorecard
     st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
     col_val1, col_val2 = st.columns([1, 1])
-    
+
     with col_val1:
         st.markdown("""
             <div class="card">
                 <div class="card-header">Scorecard de validation (9/10 ✓)</div>
                 <div style="font-size: 0.875rem;">
         """, unsafe_allow_html=True)
-        
+
         checks = [
             ("AUC > 0.80 (Bâle II excellent)", True, "0.9427"),
             ("Gini > 0.50 (bonne discrimination)", True, "0.8854"),
@@ -888,7 +881,7 @@ with tab3:
             ("AUC > 0.70 toutes années", True, "min 0.7469"),
             ("Ordre monotone des profils", True, "✓")
         ]
-        
+
         for name, ok, val in checks:
             st.markdown(f"""
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f3f4f6;">
@@ -899,7 +892,7 @@ with tab3:
                     <span style="font-weight: 600; color: #374151;">{val}</span>
                 </div>
             """, unsafe_allow_html=True)
-        
+
         st.markdown("""
                 </div>
                 <div style="margin-top: 1rem; padding: 0.75rem; background: #EAF3DE; border-radius: 8px; font-size: 0.875rem; color: #27500A;">
@@ -907,15 +900,15 @@ with tab3:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col_val2:
         # ROC Curve simulation
         fig_roc = go.Figure()
-        
+
         # Simulated ROC curve
         fpr = np.linspace(0, 1, 100)
         tpr = 1 - (1 - fpr) ** (1/0.9427)  # Approximation
-        
+
         fig_roc.add_trace(go.Scatter(
             x=fpr, y=tpr,
             mode='lines',
@@ -924,14 +917,14 @@ with tab3:
             fill='tozeroy',
             fillcolor='rgba(37, 99, 235, 0.1)'
         ))
-        
+
         fig_roc.add_trace(go.Scatter(
             x=[0, 1], y=[0, 1],
             mode='lines',
             name='Aléatoire (AUC = 0.500)',
             line=dict(color='#9ca3af', width=1.5, dash='dash')
         ))
-        
+
         fig_roc.update_layout(
             template='plotly_white',
             title='Courbe ROC — Probit Stage 2',
@@ -941,15 +934,15 @@ with tab3:
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             font=dict(family="Inter, sans-serif")
         )
-        
+
         st.plotly_chart(fig_roc, use_container_width=True)
-        
+
         # CV Stability
         fig_cv = go.Figure()
-        
+
         cv_aucs = [0.9443, 0.9420, 0.9403, 0.9413, 0.9430]
         cv_mean = np.mean(cv_aucs)
-        
+
         fig_cv.add_trace(go.Bar(
             x=[f'Fold {i+1}' for i in range(5)],
             y=cv_aucs,
@@ -957,12 +950,12 @@ with tab3:
             text=[f'{a:.4f}' for a in cv_aucs],
             textposition='outside'
         ))
-        
+
         fig_cv.add_hline(y=cv_mean, line_dash="dash", line_color="#2563EB",
                         annotation_text=f"Mean = {cv_mean:.4f}")
         fig_cv.add_hline(y=0.80, line_dash="dot", line_color="green",
                         annotation_text="Bâle good", annotation_position="right")
-        
+
         fig_cv.update_layout(
             template='plotly_white',
             title='Stabilité CV — 5-Fold Stratified',
@@ -971,7 +964,7 @@ with tab3:
             showlegend=False,
             font=dict(family="Inter, sans-serif")
         )
-        
+
         st.plotly_chart(fig_cv, use_container_width=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -979,7 +972,7 @@ with tab3:
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab4:
     st.markdown("<h3>Architecture à deux niveaux</h3>", unsafe_allow_html=True)
-    
+
     # Architecture flow
     steps = [
         {
@@ -991,7 +984,7 @@ with tab4:
                 '4 133 clients entreprises · Data.csv',
                 'Sets A (bancaires) / B (ratios) / C (combiné)',
                 'Logit · Probit · LDA · Sélection macro systématique',
-                'Résultat : Set B insuffisant — ratios n\'ajoutent rien'
+                'Résultat : Set B insuffisant — ratios n'ajoutent rien'
             ]
         },
         {
@@ -1031,7 +1024,7 @@ with tab4:
             ]
         }
     ]
-    
+
     for step in steps:
         st.markdown(f"""
             <div style="display: flex; gap: 1rem; padding: 1.25rem; background: {step['light']}; border-radius: 12px; margin-bottom: 0.75rem; border-left: 4px solid {step['color']};">
@@ -1044,11 +1037,11 @@ with tab4:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    
+
     # Data & decisions
     st.markdown("<div style='margin-top: 2rem;'></div>", unsafe_allow_html=True)
     col_arch1, col_arch2 = st.columns(2)
-    
+
     with col_arch1:
         st.markdown("""
             <div class="card">
@@ -1073,7 +1066,7 @@ with tab4:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-    
+
     with col_arch2:
         st.markdown("""
             <div class="card">
@@ -1108,11 +1101,3 @@ st.markdown("""
         <div>Modèle : ΔNPL ~ PIB + Chômage_lag + COVID + ARAB_SPRING | HAC Newey-West | N=15 (2010-2024)</div>
     </div>
 """, unsafe_allow_html=True)
-'''
-
-# Write the file
-with open('/mnt/agents/output/stress_testing_dashboard.py', 'w', encoding='utf-8') as f:
-    f.write(code)
-
-print("Dashboard file created successfully!")
-print(f"File size: {len(code)} characters")
