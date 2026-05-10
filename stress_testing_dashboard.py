@@ -25,26 +25,33 @@ st.markdown("""
 
     /* Root variables */
     :root {
-        --primary: #0C447C;
-        --primary-light: #E6F1FB;
-        --success: #27500A;
-        --success-light: #EAF3DE;
-        --warning: #633806;
-        --warning-light: #FAEEDA;
-        --danger: #791F1F;
-        --danger-light: #FCEBEB;
-        --text-primary: #1a1a1a;
-        --text-secondary: #6b7280;
-        --bg-primary: #ffffff;
-        --bg-secondary: #f8fafc;
-        --border: #e5e7eb;
-    }
+    --primary: #60A5FA;
+    --primary-light: #1E3A5F;
+
+    --success: #4ADE80;
+    --success-light: #16351F;
+
+    --warning: #FBBF24;
+    --warning-light: #3B2A12;
+
+    --danger: #F87171;
+    --danger-light: #3A1B1B;
+
+    --text-primary: #F3F4F6;
+    --text-secondary: #9CA3AF;
+
+    --bg-primary: #0F172A;
+    --bg-secondary: #111827;
+
+    --border: #374151;
+}
 
     /* Global resets */
     .stApp {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-    }
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(180deg, #0F172A 0%, #111827 100%);
+    color: var(--text-primary);
+}
 
     .main .block-container {
         padding: 2rem 3rem;
@@ -88,7 +95,7 @@ st.markdown("""
 
     /* Metric Cards */
     .metric-container {
-        background: white;
+        background: #111827;
         border: 1px solid var(--border);
         border-radius: 16px;
         padding: 1.5rem;
@@ -142,7 +149,7 @@ st.markdown("""
 
     /* Cards */
     .card {
-        background: white;
+        background: #111827;
         border: 1px solid var(--border);
         border-radius: 16px;
         padding: 1.5rem;
@@ -163,7 +170,7 @@ st.markdown("""
 
     /* Scenario Buttons */
     .scenario-btn {
-        background: white;
+        background: #111827;
         border: 1.5px solid var(--border);
         border-radius: 12px;
         padding: 1rem 1.5rem;
@@ -291,7 +298,7 @@ st.markdown("""
     /* Tab styling */
     .stTabs [data-baseweb="tab-list"] {
         gap: 0;
-        background: white;
+        background: #111827;
         border-radius: 12px;
         padding: 0.25rem;
         border: 1px solid var(--border);
@@ -311,7 +318,7 @@ st.markdown("""
 
     /* Sidebar */
     .css-1d391kg {
-        background: white;
+       background: #111827;
     }
 
     /* Custom scrollbar */
