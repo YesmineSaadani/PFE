@@ -406,7 +406,6 @@ def run_monte_carlo(pib_vals, chom_vals, n_sim=8000):
     arr = np.array(all_npl)
     p5  = np.percentile(arr, 5, axis=0)
     p95 = np.percentile(arr, 95, axis=0)
-    max_npl = arr[:, -1].max(axis=1) if arr.ndim > 1 else arr[:, -1]
     cushions = np.maximum(0, PD_BASELINE*(arr[:,-1]/NPL_BASELINE)*LGD*EAD_TOTAL/1e6
                           - PD_BASELINE*LGD*EAD_TOTAL/1e6)
     return p5, p95, float(np.mean(cushions > 0))
