@@ -984,7 +984,7 @@ with tab4:
                 '4 133 clients entreprises · Data.csv',
                 'Sets A (bancaires) / B (ratios) / C (combiné)',
                 'Logit · Probit · LDA · Sélection macro systématique',
-                'Résultat : Set B insuffisant — ratios n'ajoutent rien'
+                'Résultat : Set B insuffisant — ratios najoutent rien'
             ]
         },
         {
