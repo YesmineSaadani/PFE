@@ -5,7 +5,8 @@
 ║                                                                      ║
 ║   Version finale — données STB 2006-2024 corrigées                  ║
 ║   Modèle satellite : logit_NPL AR(1) + PIB + Chôm_lag + COVID       ║
-║   Probit Stage 2   : AUC=0.9427 · Gini=0.8855 · N=327,571          ║
+║   Probit Stage 2   : AUC=0.9890 · Gini=0.9781 · N=321,890          ║
+║   ENG_log + ENG_log×SECT_2 + IMP_log + GEL_log · 10/10 checks      ║
 ║                                                                      ║
 ║   Run: streamlit run stress_testing_app.py                          ║
 ╚══════════════════════════════════════════════════════════════════════╝
@@ -72,7 +73,7 @@ div[data-testid="stButton"]>button[kind="primary"]{background:var(--blue-dim)!im
 .risk-bar-wrap{background:var(--surface2);border-radius:999px;height:8px;margin:.4rem 0;overflow:hidden;}
 .risk-bar-fill{height:100%;border-radius:999px;transition:width .4s ease;}
 .wf-row{display:flex;align-items:center;gap:.75rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.875rem;}
-.wf-label{width:160px;color:var(--muted);font-family:var(--mono);font-size:.8rem;}
+.wf-label{width:180px;color:var(--muted);font-family:var(--mono);font-size:.8rem;}
 .wf-bar-wrap{flex:1;background:var(--surface2);height:22px;border-radius:4px;overflow:hidden;position:relative;}
 .wf-bar{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-family:var(--mono);font-size:.78rem;font-weight:600;white-space:nowrap;}
 .wf-val{width:70px;text-align:right;font-family:var(--mono);font-size:.82rem;font-weight:600;}
@@ -112,18 +113,18 @@ def styled_fig(fig, height=380):
     return fig
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CONSTANTS — FINAL PIPELINE VALUES
+#  CONSTANTS — FINAL PIPELINE VALUES (updated from new pipeline output)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Portfolio ──────────────────────────────────────────────────────────────────
 NPL_BASELINE = 23.3          # STB 2024 observé
-PD_BASELINE  = 0.1484        # Stage 2 Probit baseline PD
+PD_BASELINE  = 0.1484        # Stage 2 Probit baseline PD (14.84%)
 LGD          = 0.45          # Basel II corporate floor
 EAD_TOTAL    = (13_571 + 0.20 * 93 + 42.9) * 1_000_000  # 13,632.5M TND
 EPS          = 0.001
 
 # ── Satellite model: logit_NPL ~ AR(1) + PIB + Chomage_lag1 + COVID ───────────
-# HAC Newey-West coefficients (final pipeline output)
+# Retenu parmi 31 spécifications testées — HAC Newey-West 2 lags
 SAT_COEFS = dict(
     const          = -0.5821,
     logit_NPL_lag1 =  0.8188,
@@ -132,8 +133,7 @@ SAT_COEFS = dict(
     COVID          = -0.9015,
 )
 
-# Exact HAC covariance matrix from statsmodels (calculated from your Python script)
-# Order: const, logit_NPL_lag1, PIB, Chomage_lag1, COVID
+# HAC covariance matrix (5×5) — ordre: const, logit_NPL_lag1, PIB, Chomage_lag1, COVID
 SAT_COV = np.array([
     [ 0.065130,  0.018020, -0.002810,  0.004150,  0.031100],
     [ 0.018020,  0.011490, -0.001180,  0.001520,  0.014000],
@@ -142,42 +142,46 @@ SAT_COV = np.array([
     [ 0.031100,  0.014000, -0.002540,  0.003860,  0.038780],
 ])
 
-# ── Probit Stage 2 coefficients (standardized inputs, final output) ───────────
+# ── Probit Stage 2 coefficients — V4 final spec ───────────────────────────────
+# N=321,890 (2020-2021) · ENG_log + ENG_log×SECT_2 · IMP_log + GEL_log
+# AUC=0.9890 · Gini=0.9781 · CV=0.9874±0.0008 · 10/10 checks
 PROBIT_COEFS = dict(
-    const          = -1.4644,
-    ENG            =  0.0071,
-    CA_Confie      = -0.1214,
-    IMP            =  0.1720,
-    GEL            =  0.0354,
-    PR_log         =  0.1373,
-    AGIOS_bin      =  0.3055,
-    SECT_1         =  0.0394,
-    SECT_3         =  0.0197,
-    SECT_4         =  0.1466,
-    SECT_5         =  0.0656,
-    SECT_6         =  0.1145,
-    SECT_8         =  0.0537,
-    SECT_9         =  0.0917,
-    SECT_10        =  0.0304,
-    SECT_11        =  0.0594,
-    SECT2_post2019 =  0.7451,   # interaction COVID — SECT 2 post-2019
+    const            = -2.1652,
+    ENG_log          = -0.0409,
+    ENG_log_SECT2    = -0.3724,   # ENG_log × SECT_2.0 interaction
+    CA_Confie_log    = -0.4385,
+    IMP_log          =  0.4045,
+    GEL_log          =  1.1886,
+    PR_log           = -0.0566,
+    AGIOS_bin        =  0.0102,
+    SECT_1           =  0.0230,
+    SECT_2           =  0.6041,   # SECT_2.0 (Autres)
+    SECT_3           =  0.0114,
+    SECT_4           =  0.2360,
+    SECT_5           =  0.0000,   # dropped by backward elimination
+    SECT_6           =  0.0848,
+    SECT_8           =  0.1145,
+    SECT_9           =  0.0941,
+    SECT_10          =  0.0000,   # dropped by backward elimination
+    SECT_11          =  0.0745,
 )
 
+# Sector names (pipeline labels — SECT_7 = CONSOMMATION = référence)
 SECT_NAMES = {
     1:  'Agriculture',
-    2:  'Autres (SECT2_post2019)',
-    3:  'Commerce',
-    4:  'Construction',
-    5:  'Éducation / Santé',
-    6:  'Finance',
+    2:  'Autres (SECT_2)',
+    3:  'Autres Industries',
+    4:  'Autres Services',
+    5:  'Bâtiment & TP',
+    6:  'Commerce',
     7:  'Consommation (réf.)',
-    8:  'Immobilier',
-    9:  'Services',
-    10: 'Telecom / Tech',
-    11: 'Transport',
+    8:  'Habitat',
+    9:  'Industrie Manufacturière',
+    10: 'Promotions Immobilières',
+    11: 'Tourisme',
 }
 
-# ── Scenarios (from final stress testing output) ───────────────────────────────
+# ── Scenarios (from final pipeline stress testing output) ─────────────────────
 SCENARIOS = {
     'Baseline': {
         'PIB':       [ 2.0,  2.5,  3.0],
@@ -185,7 +189,7 @@ SCENARIOS = {
         'COVID':     [0, 0, 0],
         'color':     '#22D3A3',
         'desc':      'FMI WEO — reprise graduelle',
-        'npl_ref':   [23.4, 23.1, 22.4],   # reference from pipeline
+        'npl_ref':   [23.4, 23.1, 22.4],
         'cushion':   5.8,
     },
     'Défavorable': {
@@ -209,11 +213,10 @@ SCENARIOS = {
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  DATA
+#  DATA — STB NPL 2006-2024 + macro Tunisie
 # ═══════════════════════════════════════════════════════════════════════════════
 @st.cache_data
 def get_macro_data():
-    """STB NPL 2006-2024 + Tunisia macro (final pipeline data)."""
     return pd.DataFrame({
         'Year':      list(range(2006, 2025)),
         'NPL':       [29.60, 26.70, 23.10, 19.50, 21.10, 23.00, 26.90, 28.67,
@@ -228,6 +231,9 @@ def get_macro_data():
         'Inflation': [ 3.225,  2.967,  4.345,  3.665,  3.339,  3.240,  4.612,
                        5.316,  4.626,  4.437,  3.629,  5.309,  7.308,  6.720,
                        5.634,  5.706,  8.306,  9.329,  7.207],
+        'Coverage':  [42.10, 48.10, 49.0, 49.70, 43.05, 47.97, 47.84, 61.90,
+                      66.0, 67.90, 73.10, 73.50, 75.40, 75.36, 75.30, 75.0,
+                      62.90, 46.40, 40.60],
     })
 
 macro_data = get_macro_data()
@@ -243,7 +249,7 @@ def npl_from_logit(x):
     return np.clip(np.exp(x) / (1 + np.exp(x)) * 100, 0.1, 60.0)
 
 def calc_stress(pib_vals, chom_vals, covid_vals=None):
-    """Project NPL using AR(1) logit_NPL satellite model."""
+    """Project NPL using AR(1) logit_NPL satellite model (31 specs tested, winner)."""
     if covid_vals is None:
         covid_vals = [0, 0, 0]
     logit_prev = logit_from_npl(NPL_BASELINE)
@@ -266,14 +272,17 @@ def calc_stress(pib_vals, chom_vals, covid_vals=None):
 
 @st.cache_data
 def run_monte_carlo(pib_vals_t, chom_vals_t, n_sim=8000):
-    """Multivariate Monte Carlo on HAC covariance matrix (5 params)."""
+    """
+    Constrained multivariate Monte Carlo on HAC covariance matrix.
+    Constraint: AR(1)∈(0.6,0.95), β_PIB<0, β_Chôm>0 — acceptance rate ≈71.5%.
+    """
     coefs_arr = np.array([SAT_COEFS['const'], SAT_COEFS['logit_NPL_lag1'],
                           SAT_COEFS['PIB'], SAT_COEFS['Chomage_lag1'],
                           SAT_COEFS['COVID']])
-    draws = np.random.multivariate_normal(coefs_arr, SAT_COV, size=n_sim * 2)
-    # constrain to economically valid signs
-    mask  = (draws[:, 1] > 0.5) & (draws[:, 1] < 1.0) & \
-            (draws[:, 2] < 0)   & (draws[:, 3] > 0)
+    draws = np.random.multivariate_normal(coefs_arr, SAT_COV, size=n_sim * 4)
+    # Economic sign constraints (acceptance rate ≈ 71.5% from pipeline)
+    mask  = (draws[:, 1] > 0.60) & (draws[:, 1] < 0.95) & \
+            (draws[:, 2] < -0.01) & (draws[:, 3] > 0.01)
     draws = draws[mask][:n_sim]
     if len(draws) < 100:
         draws = np.random.multivariate_normal(coefs_arr, SAT_COV, size=n_sim)
@@ -299,24 +308,29 @@ def run_monte_carlo(pib_vals_t, chom_vals_t, n_sim=8000):
         PD_BASELINE * (arr[:, -1] / NPL_BASELINE) * LGD * EAD_TOTAL / 1e6 - el_cur)
     return p5, p95, float(np.mean(cushions > 0))
 
-def calc_pd_probit(eng, ca_confie, imp, gel, pr_log, agios, sect,
-                   is_post2019=True):
-    """Compute PD from Stage 2 Probit (standardized inputs)."""
+def calc_pd_probit(eng_log, ca_confie_log, imp_log, gel_log, pr_log, agios_bin,
+                   sect, is_sect2=False):
+    """
+    Compute PD from Stage 2 Probit V4 spec (standardized inputs).
+    Variables: ENG_log, ENG_log×SECT_2, CA_Confie_log, IMP_log, GEL_log,
+               PR_log, AGIOS_bin + sector dummies (ref = SECT_7 Consommation).
+    """
     z = PROBIT_COEFS['const']
-    z += PROBIT_COEFS['ENG']       * eng
-    z += PROBIT_COEFS['CA_Confie'] * ca_confie
-    z += PROBIT_COEFS['IMP']       * imp
-    z += PROBIT_COEFS['GEL']       * gel
-    z += PROBIT_COEFS['PR_log']    * pr_log
-    z += PROBIT_COEFS['AGIOS_bin'] * agios
+    z += PROBIT_COEFS['ENG_log']       * eng_log
+    z += PROBIT_COEFS['CA_Confie_log'] * ca_confie_log
+    z += PROBIT_COEFS['IMP_log']       * imp_log
+    z += PROBIT_COEFS['GEL_log']       * gel_log
+    z += PROBIT_COEFS['PR_log']        * pr_log
+    z += PROBIT_COEFS['AGIOS_bin']     * agios_bin
+
+    # SECT_2 gets its own dummy + the interaction on ENG_log
     if sect == 2:
-        # SECT_2.0 replaced by SECT2_post2019 interaction
-        if is_post2019:
-            z += PROBIT_COEFS['SECT2_post2019']
-        # else: no sector premium (2019 behavior = reference)
+        z += PROBIT_COEFS['SECT_2']
+        z += PROBIT_COEFS['ENG_log_SECT2'] * eng_log   # interaction
     elif sect != 7:
         key = f'SECT_{sect}'
         z  += PROBIT_COEFS.get(key, 0.0)
+
     return float(ndtr(z)), float(z)
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -327,6 +341,7 @@ st.markdown(f"""
   <div class="topbar-title">Stress Testing & Risque de Crédit — STB</div>
   <div class="topbar-sub">
     Architecture Wilson (1997) · Bâle II Pilier 2 · logit_NPL AR(1)+PIB+Chôm+COVID · HAC NW ·
+    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · 31 specs testées ·
     <span style="color:#22D3A3">● Version finale</span> ·
     {datetime.now().strftime("%d %b %Y")}
   </div>
@@ -374,13 +389,11 @@ with tab1:
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem'>Chômage_lag 2025 (%, valeur 2024)</div>", unsafe_allow_html=True)
         chom_0 = st.slider("chom_0", 12.0, 25.0, float(scen['Chom_lag'][0]), 0.5, label_visibility="collapsed")
 
-    # Build 3-year paths using same logic as pipeline (reversion to scenario path)
-    # User modifies 2025 values → 2026-2027 gradually revert to scenario baseline
     delta_pib  = pib_0 - scen['PIB'][0]
     pib_vals   = [pib_0,
                   max(scen['PIB'][1], pib_0 + delta_pib * 0.3),
                   max(scen['PIB'][2], pib_0 + delta_pib * 0.1)]
-    
+
     delta_chom = chom_0 - scen['Chom_lag'][0]
     chom_vals  = [chom_0,
                   min(scen['Chom_lag'][1] + delta_chom, 22.0),
@@ -440,12 +453,12 @@ with tab1:
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
           <div style="font-size:0.7rem;color:#64748B;">EAD total (Bâle II)</div>
-          <div style="font-family:Syne;font-size:1.4rem;font-weight:700;color:#3B82F6">{EAD_TOTAL/1e9:.2f} Mds TND</div>
+          <div style="font-family:Syne;font-size:1.4rem;font-weight:700;color:#3B82F6">{EAD_TOTAL/1e9:.3f} Mds TND</div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:0.7rem;color:#64748B;">Gross receivables 2024</div>
-          <div style="font-family:IBM Plex Mono;font-size:0.9rem;color:#94A3B8">13 571 M</div>
-          <div style="font-family:IBM Plex Mono;font-size:0.75rem;color:#475569">+ CCF×93M + intérêts 42.9M</div>
+          <div style="font-size:0.7rem;color:#64748B;">Gross receivables 2024 · Coverage 2024</div>
+          <div style="font-family:IBM Plex Mono;font-size:0.9rem;color:#94A3B8">13 571 M · 40.6%</div>
+          <div style="font-family:IBM Plex Mono;font-size:0.75rem;color:#475569">+ CCF×93M + intérêts 42.9M · ⚠ sous-provisionnement structurel</div>
         </div>
       </div>
     </div>
@@ -454,9 +467,9 @@ with tab1:
     col_ch1, col_ch2 = st.columns([3, 2])
 
     with col_ch1:
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Projections NPL 2025-2027 — IC 90% Monte Carlo</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Projections NPL 2025-2027 — IC 90% Monte Carlo contraint</div>", unsafe_allow_html=True)
 
-        with st.spinner("Simulation Monte Carlo…"):
+        with st.spinner("Simulation Monte Carlo (signes économiques imposés)…"):
             p5, p95, prob_pos = run_monte_carlo(tuple(pib_vals), tuple(chom_vals))
 
         hist_years = macro_data['Year'].tolist()
@@ -467,13 +480,11 @@ with tab1:
         p95_full   = [NPL_BASELINE] + list(p95)
 
         fig_npl = go.Figure()
-        # Historical
         fig_npl.add_trace(go.Scatter(
             x=hist_years, y=hist_npl, mode='lines+markers',
             name='NPL STB observé (2006-2024)',
             line=dict(color='#475569', width=2), marker=dict(size=5)
         ))
-        # MC band
         rgb = tuple(int(scen['color'][i:i+2], 16) for i in (1, 3, 5))
         fig_npl.add_trace(go.Scatter(
             x=proj_years + proj_years[::-1],
@@ -483,14 +494,12 @@ with tab1:
             line=dict(color='rgba(0,0,0,0)'),
             name='IC 90% Monte Carlo', showlegend=True
         ))
-        # Projection line
         fig_npl.add_trace(go.Scatter(
             x=proj_years, y=proj_npl, mode='lines+markers',
             name=f'Projection {st.session_state.scen}',
             line=dict(color=scen['color'], width=2.5, dash='dot'),
             marker=dict(size=8, symbol='diamond')
         ))
-        # Historical max reference
         fig_npl.add_hline(y=30.3, line_dash="dot", line_color="#475569",
                           annotation_text="Max historique 2015 (30.3%)",
                           annotation_position="top right",
@@ -499,11 +508,14 @@ with tab1:
                           annotation_text=f"NPL 2024 = {NPL_BASELINE}%",
                           annotation_position="bottom right",
                           annotation_font_color="#3B82F6")
-        # Annotations for 2020 and 2011
         fig_npl.add_vrect(x0=2019.5, x1=2020.5, fillcolor="#F87171",
                           opacity=0.07, line_width=0,
-                          annotation_text="COVID+BCT", annotation_position="top left",
+                          annotation_text="COVID+BCT forbearance", annotation_position="top left",
                           annotation_font=dict(color="#F87171", size=9))
+        fig_npl.add_vrect(x0=2021.5, x1=2022.5, fillcolor="#FBBF24",
+                          opacity=0.06, line_width=0,
+                          annotation_text="Dénouement forbearance", annotation_position="top left",
+                          annotation_font=dict(color="#FBBF24", size=9))
         fig_npl.add_annotation(x=proj_years[-1] + 0.1, y=proj_npl[-1],
                                 text=f"<b>{proj_npl[-1]:.1f}%</b>",
                                 font=dict(color=scen['color'], size=13, family="Syne"),
@@ -513,8 +525,15 @@ with tab1:
 
         st.markdown(f"""<div style="background:rgba(34,211,163,.08);border:1px solid rgba(34,211,163,.25);
             border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.82rem;color:#22D3A3;margin-top:-.5rem">
-            Monte Carlo multivarié N≈{int(prob_pos*8000):,} tirages valides · Signes économiques imposés ·
+            MC contraint N≈{int(prob_pos*8000):,} tirages valides · AR(1)∈(0.6,0.95) · β_PIB&lt;0 · β_Chôm&gt;0 ·
             P(coussin > 0) = <b>{prob_pos:.1%}</b>
+        </div>""", unsafe_allow_html=True)
+
+        # Under-provisioning warning
+        st.markdown("""<div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);
+            border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.78rem;color:#F87171;margin-top:.5rem">
+            ⚠ Sous-provisionnement structurel détecté : Coverage 75.0% (2021) → 40.6% (2024) −34.4pp
+            pendant que NPL +9.8pp. Corrélation ΔNPL vs ΔCoverage = −0.340. Renforce la nécessité du coussin Pilier 2.
         </div>""", unsafe_allow_html=True)
 
     with col_ch2:
@@ -537,7 +556,6 @@ with tab1:
         fig_el.update_layout(showlegend=False)
         st.plotly_chart(fig_el, use_container_width=True)
 
-        # Detail table
         rows_html = ""
         for r in results:
             delta = r['delta_npl']
@@ -562,7 +580,7 @@ with tab1:
           <tbody>{rows_html}</tbody>
         </table></div>""", unsafe_allow_html=True)
 
-        # Coussin table for all 3 scenarios (pipeline reference)
+        # Coussin table + LGD sensitivity
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Coussins Pilier 2 — pipeline final</div>", unsafe_allow_html=True)
         for sname, sdata in SCENARIOS.items():
             c = sdata['color']
@@ -571,6 +589,20 @@ with tab1:
                 <span style="font-size:.82rem;color:#94A3B8">{sname}</span>
                 <span style="font-family:IBM Plex Mono;font-size:.85rem;color:{c};font-weight:600">{sdata['cushion']:.0f} M TND</span>
                 <span style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B">{sdata['cushion']/(EAD_TOTAL/1e6)*100:.2f}% EAD</span>
+            </div>""", unsafe_allow_html=True)
+
+        # LGD sensitivity (from pipeline)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Sensibilité LGD — scénario sévère</div>", unsafe_allow_html=True)
+        sev_max_pd = max(r['pd'] for r in calc_stress(SCENARIOS['Sévère']['PIB'], SCENARIOS['Sévère']['Chom_lag']))
+        for lgd_t, lgd_label in [(0.45, "LGD 45% (Bâle II)"), (0.60, "LGD 60%"), (0.75, "LGD 75%")]:
+            cushion_lgd = max(0, sev_max_pd * lgd_t * EAD_TOTAL / 1e6 -
+                             PD_BASELINE * lgd_t * EAD_TOTAL / 1e6)
+            c = "#22D3A3" if lgd_t == 0.45 else ("#FBBF24" if lgd_t == 0.60 else "#F87171")
+            st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;
+                padding:.4rem .75rem;margin-bottom:.25rem;background:#162236;border-radius:6px;border:1px solid #1E3050">
+                <span style="font-size:.78rem;color:#94A3B8">{lgd_label}</span>
+                <span style="font-family:IBM Plex Mono;font-size:.82rem;color:{c};font-weight:600">{cushion_lgd:.0f} M</span>
+                <span style="font-family:IBM Plex Mono;font-size:.72rem;color:#64748B">{cushion_lgd/(EAD_TOTAL/1e6)*100:.2f}%</span>
             </div>""", unsafe_allow_html=True)
 
 # ╔══════════════════════════════════════════════════════════╗
@@ -603,8 +635,7 @@ with tab2:
 
         npl_fit_level = np.array([npl_from_logit(x) for x in logit_fit])
         years_sat     = df_sat['Year'].tolist()
-
-        mae_val = float(np.mean(np.abs(npl_arr[1:] - npl_fit_level[1:])))
+        mae_val       = float(np.mean(np.abs(npl_arr[1:] - npl_fit_level[1:])))
 
         fig_fit = go.Figure()
         fig_fit.add_trace(go.Scatter(x=years_sat, y=npl_arr, mode='lines+markers',
@@ -615,11 +646,16 @@ with tab2:
             line=dict(color='#3B82F6', width=2, dash='dash'), marker=dict(size=5)))
         fig_fit.add_vrect(x0=2019.5, x1=2020.5, fillcolor="#F87171",
             opacity=0.08, line_width=0,
-            annotation_text="COVID\n(forbearance BCT)",
+            annotation_text="COVID (forbearance BCT)",
             annotation_position="top left",
             annotation_font=dict(color="#F87171", size=9, family="IBM Plex Mono"))
+        fig_fit.add_vrect(x0=2021.5, x1=2022.5, fillcolor="#FBBF24",
+            opacity=0.06, line_width=0,
+            annotation_text="Dénouement\nforbearance",
+            annotation_position="top left",
+            annotation_font=dict(color="#FBBF24", size=9, family="IBM Plex Mono"))
         fig_fit.add_vrect(x0=2010.5, x1=2011.5, fillcolor="#FBBF24",
-            opacity=0.08, line_width=0,
+            opacity=0.06, line_width=0,
             annotation_text="Printemps Arabe",
             annotation_position="top left",
             annotation_font=dict(color="#FBBF24", size=9, family="IBM Plex Mono"))
@@ -627,16 +663,36 @@ with tab2:
         fig_fit.update_layout(legend=dict(y=-.15, orientation='h'))
         st.plotly_chart(fig_fit, use_container_width=True)
 
+        # Coverage rate chart
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>Taux de couverture des provisions — NPL STB 2006-2024</div>", unsafe_allow_html=True)
+        fig_cov = go.Figure()
+        fig_cov.add_trace(go.Scatter(x=years_sat, y=df_sat['Coverage'].values,
+            mode='lines+markers', name='Coverage (%)',
+            line=dict(color='#FBBF24', width=2.2), marker=dict(size=5),
+            fill='tozeroy', fillcolor='rgba(251,191,36,0.05)'))
+        fig_cov.add_trace(go.Scatter(x=years_sat, y=npl_arr,
+            mode='lines', name='NPL (%)',
+            line=dict(color='#F87171', width=1.8, dash='dot')))
+        fig_cov.add_hline(y=75.0, line_dash="dot", line_color="#22D3A3",
+            annotation_text="Coverage 2021 = 75%",
+            annotation_font_color="#22D3A3")
+        fig_cov.add_hline(y=40.6, line_dash="dot", line_color="#F87171",
+            annotation_text="Coverage 2024 = 40.6% ⚠",
+            annotation_font_color="#F87171")
+        fig_cov = styled_fig(fig_cov, 220)
+        fig_cov.update_layout(legend=dict(y=-.15, orientation='h'))
+        st.plotly_chart(fig_cov, use_container_width=True)
+
         # Waterfall — coefficient contributions for severe 2026
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>Décomposition logit_NPL — scénario sévère 2026 (PIB=−3%, Chôm=17%)</div>", unsafe_allow_html=True)
 
-        logit_2025 = logit_from_npl(26.2)   # sévère 2025 result
+        logit_2025 = logit_from_npl(26.2)
         contributions = {
-            'AR(1) term':         SAT_COEFS['logit_NPL_lag1'] * logit_2025,
-            'Constante':          SAT_COEFS['const'],
-            'PIB (−3.0%)':        SAT_COEFS['PIB']          * (-3.0),
-            'Chômage_lag (17.0%)':SAT_COEFS['Chomage_lag1'] * 17.0,
-            'COVID (=0)':         0.0,
+            'AR(1) term':           SAT_COEFS['logit_NPL_lag1'] * logit_2025,
+            'Constante':            SAT_COEFS['const'],
+            'PIB (−3.0%)':          SAT_COEFS['PIB']          * (-3.0),
+            'Chômage_lag (17.0%)':  SAT_COEFS['Chomage_lag1'] * 17.0,
+            'COVID (=0)':           0.0,
         }
         total_logit = sum(contributions.values())
         total_npl   = npl_from_logit(total_logit)
@@ -671,9 +727,8 @@ with tab2:
         st.markdown(f'<div class="card">{wf_html}</div>', unsafe_allow_html=True)
 
     with col_m2:
-        # Model specification
         st.markdown("""<div class="card">
-          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Spécification satellite</div>
+          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Spécification satellite — sélectionnée parmi 31 specs</div>
           <div style="font-family:IBM Plex Mono;font-size:.82rem;background:#0F1929;padding:.85rem;border-radius:8px;border:1px solid #1E3050;line-height:1.8;color:#94A3B8">
             <span style="color:#22D3A3">logit_NPL</span><sub>t</sub> =<br>
             &nbsp;&nbsp;&nbsp;β₀ (const)<br>
@@ -684,12 +739,12 @@ with tab2:
             &nbsp;&nbsp;&nbsp;+ ε<sub>t</sub>
           </div>
           <div style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;margin-top:.7rem">
-            logit_NPL = log(NPL/(1-NPL)) · stationnaire (ADF p=0.003)<br>
-            HAC Newey-West · 2 lags · N=17 (2008-2024)
+            logit_NPL = log(NPL/(1−NPL)) · ADF p=0.003 (stationnaire ✓)<br>
+            HAC Newey-West · 2 lags · N=17 (2008-2024)<br>
+            Sélection automatique parmi 31 spécifications : 22→13→3→3
           </div>
         </div>""", unsafe_allow_html=True)
 
-        # Diagnostics
         diags = [
             ("N", "17  (2008-2024)"),
             ("R²adj", "0.744"),
@@ -700,7 +755,8 @@ with tab2:
             ("JB p", "0.582 ✓"),
             ("SW p", "0.520 ✓"),
             ("ADF logit_NPL", "p=0.003 ✓"),
-            ("GLS stab. macro", "Δ<0.05 ✓"),
+            ("GLS stabilité", "Δ<0.05 tous coefs sauf COVID ✓"),
+            ("Demi-vie AR(1)", "3.5 ans (historique 2-4 ans ✓)"),
         ]
         drows = "".join(f"""<div class="sc-row">
             <span style="color:#64748B;font-family:IBM Plex Mono;font-size:.8rem">{k}</span>
@@ -708,7 +764,6 @@ with tab2:
         </div>""" for k, v in diags)
         st.markdown(f'<div class="card"><div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;font-family:IBM Plex Mono">Diagnostiques</div>{drows}</div>', unsafe_allow_html=True)
 
-        # Coefficients HAC
         coef_rows = [
             ("const",           "-0.5821", "0.0225", "**"),
             ("logit_NPL_lag1",  "+0.8188", "0.0000", "***"),
@@ -723,17 +778,26 @@ with tab2:
         </div>""" for v, b, p, s in coef_rows)
         st.markdown(f'<div class="card" style="margin-top:1rem"><div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;font-family:IBM Plex Mono">Coefficients HAC Newey-West</div>{crow_html}</div>', unsafe_allow_html=True)
 
+        # Back-test note
+        st.markdown("""<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);
+            border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.78rem;color:#FBBF24;margin-top:.5rem">
+            Back-test 2022-2024 : direction correcte (+1.2pp prédit vs +9.8pp observé).
+            L'erreur de magnitude s'explique par le dénouement de la forbearance BCT —
+            choc structurel hors-échantillon reconnu par BCBS (2018, §48).
+        </div>""", unsafe_allow_html=True)
+
 # ╔══════════════════════════════════════════════════════════╗
 # ║  TAB 3 — VALIDATION PD                                 ║
 # ╚══════════════════════════════════════════════════════════╝
 with tab3:
+    # Updated metrics from new pipeline (V4 spec)
     vm1, vm2, vm3, vm4, vm5 = st.columns(5)
     vmets = [
-        ("AUC-ROC",    "0.9427", "> 0.80", "ok"),
-        ("Gini",       "0.8855", "> 0.50", "ok"),
-        ("KS stat.",   "0.7833", "> 0.40", "ok"),
-        ("CV std",     "0.0016", "< 0.05", "ok"),
-        ("Brier Skill","0.3746", "> 0.25", "ok"),
+        ("AUC-ROC",       "0.9890", "> 0.80", "ok"),
+        ("Gini",          "0.9781", "> 0.50", "ok"),
+        ("KS stat.",      "0.9281", "> 0.40", "ok"),
+        ("Brier Skill",   "0.8273", "> 0.25", "ok"),
+        ("CV std",        "0.0008", "< 0.05", "ok"),
     ]
     for col, (name, val, thr, _) in zip([vm1, vm2, vm3, vm4, vm5], vmets):
         col.markdown(f"""<div class="card-sm" style="text-align:center">
@@ -747,11 +811,10 @@ with tab3:
     col_v1, col_v2 = st.columns([1, 1])
 
     with col_v1:
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Courbe ROC — Probit Stage 2</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Courbe ROC — Probit Stage 2 V4</div>", unsafe_allow_html=True)
         fpr_pts = np.linspace(0, 1, 300)
-        # Approximation plus précise pour AUC=0.9427
-        # TPR = 1 - (1 - FPR)^(1/(1-AUC)) approx
-        power = 1 / (1 - 0.9427)  # ≈ 17.45
+        # AUC=0.9890
+        power   = 1 / (1 - 0.9890)
         tpr_pts = np.clip(1 - (1 - fpr_pts) ** (1/power), 0, 1)
 
         fig_roc = go.Figure()
@@ -759,7 +822,7 @@ with tab3:
             name='Aléatoire (AUC=0.50)',
             line=dict(color='#475569', dash='dash', width=1.5)))
         fig_roc.add_trace(go.Scatter(x=fpr_pts, y=tpr_pts, mode='lines',
-            name='Probit Stage 2 (AUC=0.9427)',
+            name='Probit Stage 2 V4 (AUC=0.9890)',
             line=dict(color='#3B82F6', width=2.5),
             fill='tozeroy', fillcolor='rgba(59,130,246,0.08)'))
         fig_roc.update_layout(xaxis_title='FPR', yaxis_title='TPR',
@@ -768,16 +831,15 @@ with tab3:
         st.plotly_chart(fig_roc, use_container_width=True)
         st.markdown("""
         <div style="font-size:0.7rem; color:#64748B; margin-top:-0.5rem; margin-bottom:1rem;">
-          *Courbe ROC simulée à partir de l'AUC=0.9427 — données réelles (65 515 obs) disponibles dans le rapport*
+          *Courbe ROC simulée à partir de l'AUC=0.9890 — données réelles (64 378 obs test) disponibles dans le rapport*
         </div>
         """, unsafe_allow_html=True)
 
-        # AUC by year
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>AUC par année (robustesse COVID)</div>", unsafe_allow_html=True)
+        # AUC by year (actual values from pipeline)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>AUC par année — out-of-time validation</div>", unsafe_allow_html=True)
         yr_aucs = [
-            ('2019', 0.7295, 1114,  '#FBBF24', '⚠ Small N'),
-            ('2020', 0.9366, 31473, '#22D3A3', '✓'),
-            ('2021', 0.9476, 32928, '#22D3A3', '✓'),
+            ('2020', 0.9828, 31491,  '#22D3A3', '✓  +0.0013 OOT'),
+            ('2021', 0.9925, 32887,  '#22D3A3', '✓'),
         ]
         yr_html = "".join(f"""<div class="sc-row">
             <span style="font-family:IBM Plex Mono;color:#94A3B8;width:3rem">{yr}</span>
@@ -787,22 +849,30 @@ with tab3:
               </div>
             </div>
             <span style="font-family:IBM Plex Mono;font-size:.82rem;color:{c};width:4rem">{auc:.4f}</span>
-            <span style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;margin-left:.3rem;width:3rem">{note}</span>
+            <span style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;margin-left:.3rem;width:7rem">{note}</span>
             <span style="font-family:IBM Plex Mono;font-size:.72rem;color:#475569;margin-left:.3rem">N={n:,}</span>
         </div>""" for yr, auc, n, c, note in yr_aucs)
         st.markdown(f'<div class="card">{yr_html}</div>', unsafe_allow_html=True)
 
-        # Note on 2019
-        st.markdown("""<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);
-            border-radius:8px;padding:.6rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#FBBF24;margin-top:.5rem">
-            2019 : AUC=0.7295 (>seuil Bâle II 0.70 ✓) · N=1 114 limité · SECT2_post2019 inactif (2019)
+        # AUC by segment
+        st.markdown("""<div style="background:rgba(34,211,163,.07);border:1px solid rgba(34,211,163,.2);
+            border-radius:8px;padding:.65rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#22D3A3;margin-top:.5rem">
+            AUC Non-SECT_2 : 0.9761 · AUC SECT_2 : 0.9824
+            (range 0.0097 — Stable across years ✓)
+        </div>""", unsafe_allow_html=True)
+
+        # Isotonic recalibration note
+        st.markdown("""<div style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);
+            border-radius:8px;padding:.65rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#3B82F6;margin-top:.5rem">
+            Recalibration isotone (Check 7) : HL χ² 102→14 · Brier 0.0209→0.0203 ·
+            HL p=0.0826 ✓ — Hosmer & Lemeshow (2000, p.147) : sur-rejet attendu N>50 000.
         </div>""", unsafe_allow_html=True)
 
     with col_v2:
-        # CV stability
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Stabilité cross-validation 5-fold</div>", unsafe_allow_html=True)
-        cv_aucs = [0.9447, 0.9407, 0.9406, 0.9436, 0.9432]
+        cv_aucs = [0.9879, 0.9869, 0.9885, 0.9871, 0.9864]
         cv_mean = np.mean(cv_aucs)
+        cv_std  = np.std(cv_aucs)
         fig_cv  = go.Figure()
         cv_col  = ['#22D3A3' if a >= cv_mean else '#FBBF24' for a in cv_aucs]
         fig_cv.add_trace(go.Bar(
@@ -817,21 +887,21 @@ with tab3:
             annotation_text='Bâle good (0.80)', annotation_position='top right',
             annotation_font_color='#22D3A3')
         fig_cv = styled_fig(fig_cv, 240)
-        fig_cv.update_layout(showlegend=False, yaxis_range=[0.925, 0.960])
+        fig_cv.update_layout(showlegend=False, yaxis_range=[0.980, 0.995])
         st.plotly_chart(fig_cv, use_container_width=True)
 
-        # Full scorecard
+        # Full scorecard — 10/10 from pipeline
         sc_items = [
-            ("✓", "AUC > 0.80",                    "0.9427"),
-            ("✓", "Gini > 0.50",                   "0.8855"),
-            ("✓", "KS > 0.40",                     "0.7833"),
-            ("✓", "Séparation defaulteurs",        "0.472 vs 0.091"),
-            ("✓", "Brier Skill > 0.25",             "0.3746"),
-            ("✗", "HL p > 0.05",                    "p=0.000  (N=65k)"),
-            ("✓", "CV gap < 0.02",                  "0.0002"),
-            ("✓", "CV std < 0.05",                  "0.0016"),
-            ("✓", "AUC > 0.70 toutes années",       "min=0.7295"),
-            ("✓", "Monotonie profils clients",      "✓"),
+            ("✓", "AUC > 0.80 (Basel good)",               "0.9890"),
+            ("✓", "Gini > 0.50 (Basel good)",              "0.9781"),
+            ("✓", "KS > 0.40",                             "0.9281"),
+            ("✓", "Séparation defaulteurs",                "0.832 vs 0.027"),
+            ("✓", "Brier Skill > 0.25 (raw)",              "0.8273"),
+            ("✓", "Isotonic améliore Brier",               "+0.0050"),
+            ("✓", "CV gap < 0.02",                         "0.0017"),
+            ("✓", "CV std < 0.05",                         "0.0008"),
+            ("✓", "AUC > 0.70 toutes années",              "min=0.9828"),
+            ("✓", "Monotonie profils clients",             "✓"),
         ]
         sc_html = "".join(f"""<div class="sc-row">
             <span class="sc-icon" style="color:{'#22D3A3' if i=='✓' else '#F87171'}">{i}</span>
@@ -841,15 +911,30 @@ with tab3:
         passed = sum(1 for i, _, _ in sc_items if i == '✓')
         st.markdown(f"""<div class="card" style="margin-top:.5rem">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
-            <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;font-family:IBM Plex Mono">Scorecard Bâle II — Probit Stage 2</div>
-            <span class="badge badge-{'ok' if passed>=9 else 'warn'}">{passed}/10</span>
+            <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;font-family:IBM Plex Mono">Scorecard Bâle II — Probit Stage 2 V4</div>
+            <span class="badge badge-{'ok' if passed>=9 else 'warn'}">{passed}/10 ✓</span>
           </div>
           {sc_html}
           <div style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;margin-top:.6rem;padding-top:.5rem;border-top:1px solid #1E3050">
-            HL [✗] attendu pour N>50 000 — Hosmer & Lemeshow (2000, p.147).<br>
-            Brier Skill 0.375 confirme une bonne calibration globale.
+            N=321,890 · 2020-2021 · Spec V4 retenue parmi 4 robustness specs<br>
+            HL [✗ brut] attendu pour N>50,000 — corrigé par recalibration isotone.
           </div>
         </div>""", unsafe_allow_html=True)
+
+        # Robustness comparison
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Robustesse — 4 spécifications comparées</div>", unsafe_allow_html=True)
+        rob_specs = [
+            ("V1: 2019-21 + ENG raw + SECT_2",  "0.9861", "0.0004", "#64748B"),
+            ("V2: 2019-21 + SECT2_post2019",    "0.9855", "0.0006", "#64748B"),
+            ("V3: 2020-21 + ENG raw",           "0.9879", "0.0009", "#64748B"),
+            ("V4: 2020-21 + ENG_log×SECT_2",    "0.9874", "0.0008", "#22D3A3"),
+        ]
+        for spec_n, auc_v, std_v, col in rob_specs:
+            st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;
+                padding:.4rem .75rem;margin-bottom:.25rem;background:#162236;border-radius:6px;border:1px solid {'#22D3A3' if col != '#64748B' else '#1E3050'}">
+                <span style="font-size:.75rem;color:{'#E2E8F0' if col != '#64748B' else '#64748B'}">{spec_n}</span>
+                <span style="font-family:IBM Plex Mono;font-size:.78rem;color:{col};font-weight:600">CV={auc_v}±{std_v}</span>
+            </div>""", unsafe_allow_html=True)
 
 # ╔══════════════════════════════════════════════════════════╗
 # ║  TAB 4 — ARCHITECTURE PIPELINE                         ║
@@ -858,27 +943,28 @@ with tab4:
     steps = [
         ("#3B82F6", "1", "Stage 1 — Analyse exploratoire (Data.csv)",
          ["4 133 clients entreprises · CL R 0-3 · 2019-2021",
-          "Set A (bancaires 16 vars) · Set B (5 ratios) · Set C (21 vars combinés)",
-          "Logit · Probit · LDA · 9 comparaisons · backward elimination",
-          "Résultat : Set A dominant (Gini=0.591 > C=0.585 > B=0.224)",
-          "Conclusion : variables bancaires > ratios financiers"]),
-        ("#22D3A3", "2", "Stage 2 — Analyse confirmatoire (Set_A.csv)",
-         ["327 571 clients · CL R = 4/5 exclus (Bâle II : déjà en défaut)",
-          "Fix SECT_2.0 → SECT2_post2019 (artefact moratoire BCT, CV AUC 0.9426)",
-          "Probit Stage 2 retenu · AUC=0.9427 · Gini=0.8855 · 9/10 checks",
-          "EAD = 13 632.5 M TND · PD baseline = 14.84% · N=262 056 (train)"]),
-        ("#FBBF24", "3", "Modèle satellite — logit_NPL STB",
-         ["Données NPL STB 2006-2024 (rapports annuels)",
-          "logit_NPL stationnaire confirmé (ADF p=0.003)",
-          "Sélection exhaustive : 31 specs testées → AR(1)+PIB+Chôm_lag+COVID",
-          "R²adj=0.744 · MAE=2.06pp · HAC NW · GLS confirme stabilité coefs",
-          "COVID β=−0.9015 (forbearance BCT 2020) — mis à 0 pour projections"]),
-        ("#F87171", "4", "Stress Testing — 3 scénarios 2025-2027",
-         ["Baseline (FMI) · Défavorable (stagflation) · Sévère (récession)",
-          "Linkage : PD_stress = PD_base × (NPL_stressé / NPL_2024)",
-          "EL = PD_stress × 45% × 13 632.5M TND",
-          "Monte Carlo multivarié (N≈8000, signes imposés) · P(coussin>0)=99.7%",
-          "Coussin Pilier 2 sévère : 449.5 M TND (3.30% EAD)"]),
+          "Set A (bancaires 16 vars log-transf.) · Set B (5 ratios) · Set C (21 vars combinés)",
+          "Logit · Probit · LDA · 9 comparaisons · backward elimination p<0.05",
+          "Résultat : Set A dominant (Gini=0.8111 · AUC=0.9055)",
+          "Conclusion : variables bancaires > ratios financiers (Set B Gini=0.22)"]),
+        ("#22D3A3", "2", "Stage 2 — Analyse confirmatoire V4 (Set_A.csv)",
+         ["321 890 clients · 2020-2021 (2019 exclu — changement de périmètre structurel)",
+          "CL R 4/5 exclus (déjà en défaut Bâle II) · SECT_7 Consommation = référence",
+          "ENG_log + ENG_log×SECT_2 + CA_Confie_log + IMP_log + GEL_log + PR_log + AGIOS_bin",
+          "4 spécifications de robustesse comparées → V4 retenue (AUC=0.9890, Gini=0.9781)",
+          "10/10 checks Bâle II · OOT stable (+0.0013) · Recalibration isotone ✓"]),
+        ("#FBBF24", "3", "Modèle satellite — logit_NPL STB (31 specs testées)",
+         ["Données NPL STB 2006-2024 · Macro Tunisie (Banque Mondiale / INS / BCT)",
+          "logit_NPL stationnaire (ADF p=0.003) · 31 spécifications testées exhaustivement",
+          "Sélection automatique : 31→22→13→3→3 · AR(1)+PIB+Chôm_lag+COVID retenu",
+          "R²adj=0.744 · MAE=2.06pp · DW=1.219 · JB=0.582 · HAC NW 2 lags",
+          "COVID β=−0.9015 (forbearance BCT) · LOO : coefs macro stables · GLS Δ<0.05"]),
+        ("#F87171", "4", "Stress Testing — 3 scénarios 2025-2027 + sensibilité",
+         ["Baseline (FMI) · Défavorable (stagflation) · Sévère (récession PIB=−3%)",
+          "Linkage : PD_stress = PD_base × (NPL_stressé / NPL_baseline)",
+          "EL = PD_stress × 45% × 13 632.5M TND · Sensibilité LGD 45→60→75%",
+          "MC contraint multivarié (N≈8000, taux acceptation 71.5%) · P(coussin>0)≈99.7%",
+          "Coussin Pilier 2 sévère : 449.5 M TND (3.30% EAD) · Spread baseline : +12.4pp"]),
     ]
 
     col_a1, col_a2 = st.columns([3, 2])
@@ -897,31 +983,35 @@ with tab4:
         st.markdown("""<div class="card">
           <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Linkage macro ↔ micro</div>
           <div style="font-family:IBM Plex Mono;font-size:.78rem;color:#94A3B8;line-height:2.1">
-            <div style="color:#E2E8F0">327 571 clients (Set_A)</div>
+            <div style="color:#E2E8F0">321 890 clients (2020-2021)</div>
             <div style="padding-left:1rem;color:#64748B">↓ backward elim p&lt;0.05</div>
-            <div style="color:#3B82F6">Probit Stage 2</div>
+            <div style="color:#3B82F6">Probit Stage 2 V4</div>
             <div style="padding-left:1rem;color:#64748B">→ PD_baseline = 14.84%</div>
             <div style="color:#64748B;padding-left:1rem">↕ linkage NPL</div>
-            <div style="color:#FBBF24">Satellite logit_NPL AR(1)</div>
+            <div style="color:#FBBF24">Satellite logit_NPL AR(1) [31 specs]</div>
             <div style="padding-left:1rem;color:#64748B">→ NPL_stressé (2025-27)</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
             <div style="color:#E2E8F0;font-size:.75rem">PD_s = PD_b × (NPL_s/23.3%)</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
-            <div style="color:#F87171">EL = PD_s × 45% × 13 632 M</div>
+            <div style="color:#F87171">EL = PD_s × 45% × 13 633 M</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
             <div style="color:#22D3A3">Coussin = EL_stress − EL_base</div>
+            <div style="color:#64748B;padding-left:1rem">+ Sensibilité LGD 45/60/75%</div>
           </div>
         </div>""", unsafe_allow_html=True)
 
         obs_data = [
-            ("Set_A.csv brut",         "451 835"),
-            ("Après dropna(ACTIVITE)", "437 473"),
-            ("CL R = 4/5 retirés",     "327 571"),
-            ("Train (80%)",             "262 056"),
-            ("Test (20%)",              "65 515"),
-            ("Défauts test set",        "9 701  (14.8%)"),
-            ("NPL STB 2024",            "23.3%"),
-            ("EAD total",               "13 632.5 M TND"),
+            ("Set_A.csv brut",              "451 835"),
+            ("Après dropna(ACTIVITE)",       "437 473"),
+            ("Après exclusion 2019",         "423 304"),
+            ("CL R = 4/5 retirés",           "321 890"),
+            ("Train (80%)",                  "257 512"),
+            ("Test (20%)",                   "64 378"),
+            ("Défauts test set",             "9 547  (14.8%)"),
+            ("Séparation defaulteurs",       "0.832 vs 0.027"),
+            ("NPL STB 2024",                 "23.3%"),
+            ("Coverage 2024",                "40.6% ⚠"),
+            ("EAD total",                    "13 632.5 M TND"),
         ]
         obs_html = "".join(f"""<div class="sc-row">
             <span style="font-size:.82rem;color:#94A3B8">{k}</span>
@@ -933,53 +1023,54 @@ with tab4:
         </div>""", unsafe_allow_html=True)
 
 # ╔══════════════════════════════════════════════════════════╗
-# ║  TAB 5 — CLIENT SCORING SIMULATOR                      ║
+# ║  TAB 5 — CLIENT SCORING SIMULATOR (updated V4 spec)    ║
 # ╚══════════════════════════════════════════════════════════╝
 with tab5:
     st.markdown("""<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);
         border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1.2rem;font-size:.85rem;color:#94A3B8">
-        <b style="color:#3B82F6">Simulateur en temps réel</b> — Modèle Probit Stage 2 (N=327 571 · AUC=0.9427).
-        Modifiez les paramètres (valeurs <i>standardisées</i> : 0 = moyenne portefeuille, ±1 = ±1 écart-type).
-        <b style="color:#FBBF24">SECT 2 (Autres)</b> active SECT2_post2019 (artefact moratoire BCT).
+        <b style="color:#3B82F6">Simulateur en temps réel</b> — Modèle Probit Stage 2 V4 (N=321 890 · AUC=0.9890 · 10/10 checks).
+        Variables <i>standardisées</i> (0 = moyenne portefeuille, ±1 = ±1 écart-type).
+        <b style="color:#FBBF24">SECT_2 (Autres)</b> active un terme spécifique + interaction sur ENG_log
+        (moratoire BCT — défaut quasi-déterministe médiane GEL=245 TND). Référence : <b>SECT_7 Consommation</b>.
     </div>""", unsafe_allow_html=True)
 
     col_inp, col_out = st.columns([2, 1])
 
     with col_inp:
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem'>Variables bancaires (standardisées)</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.8rem'>Variables bancaires (log-transformées, standardisées)</div>", unsafe_allow_html=True)
 
         ci1, ci2 = st.columns(2)
         with ci1:
-            eng    = st.slider("ENG — Engagement total",         -2.0, 3.0,  0.0, 0.1)
-            imp    = st.slider("IMP — Impayés",                  -1.0, 3.0,  0.0, 0.1)
-            pr_log = st.slider("PR_log — Provisions (log)",      -2.0, 3.0,  0.0, 0.1)
+            eng_log    = st.slider("ENG_log — Engagement (log)",        -2.0, 3.0,  0.0, 0.1)
+            imp_log    = st.slider("IMP_log — Impayés (log)",           -1.0, 3.0,  0.0, 0.1)
+            pr_log     = st.slider("PR_log — Provisions (log)",         -2.0, 3.0,  0.0, 0.1)
         with ci2:
-            ca_confie = st.slider("CA_Confie — CA domicilié",   -2.0, 2.0,  0.0, 0.1)
-            gel       = st.slider("GEL — Avoirs gelés",          -1.0, 3.0,  0.0, 0.1)
+            ca_log     = st.slider("CA_Confie_log — CA domicilié (log)",-2.0, 2.0,  0.0, 0.1)
+            gel_log    = st.slider("GEL_log — Avoirs gelés (log)",      -1.0, 3.0,  0.0, 0.1)
 
         ci3, ci4 = st.columns(2)
         with ci3:
-            agios = st.radio("AGIOS — Intérêts pénaux",
+            agios = st.radio("AGIOS_bin — Intérêts pénaux",
                              options=[0, 1],
                              format_func=lambda x: "Non (0)" if x == 0 else "Oui (1)",
                              horizontal=True)
         with ci4:
             sect_choice = st.selectbox(
-                "Secteur d'activité",
+                "Secteur d'activité (réf. = SECT_7 Consommation)",
                 options=[k for k in SECT_NAMES.keys() if k != 7],
                 format_func=lambda x: SECT_NAMES[x]
             )
 
-        # SECT2_post2019 toggle
-        post2019 = True
+        # Note on SECT_2 interaction
         if sect_choice == 2:
-            post2019 = st.checkbox(
-                "SECT2_post2019 actif (période post-2019 → moratoire BCT)",
-                value=True
-            )
+            st.markdown("""<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);
+                border-radius:8px;padding:.55rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#FBBF24">
+                ⚠ SECT_2 actif : β_SECT_2=+0.6041 + interaction ENG_log×SECT_2 (β=−0.3724).
+                AUC SECT_2 = 0.9824 — défaut partiellement administratif (règle 90j STB).
+            </div>""", unsafe_allow_html=True)
 
-        pd_val, z_score = calc_pd_probit(eng, ca_confie, imp, gel, pr_log,
-                                          agios, sect_choice, post2019)
+        pd_val, z_score = calc_pd_probit(eng_log, ca_log, imp_log, gel_log,
+                                          pr_log, agios, sect_choice)
 
     with col_out:
         level_txt   = ("Risque TRÈS ÉLEVÉ" if pd_val > .50 else
@@ -994,7 +1085,7 @@ with tab5:
 
         st.markdown(f"""<div class="card" style="text-align:center;padding:1.75rem 1.5rem;border-color:{level_color}40">
           <div style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.5rem">
-            Probabilité de Défaut — Probit
+            Probabilité de Défaut — Probit V4
           </div>
           <div style="font-family:Syne;font-size:3.5rem;font-weight:800;color:{level_color};line-height:1;letter-spacing:-.03em">
             {pd_val:.1%}
@@ -1007,7 +1098,7 @@ with tab5:
           <span class="badge {badge_cls}">{level_txt}</span>
           <div style="font-family:IBM Plex Mono;font-size:.78rem;color:#64748B;margin-top:.8rem">
             Z-score Probit = {z_score:+.4f}<br>
-            PD_baseline = {PD_BASELINE:.2%}
+            PD_baseline = {PD_BASELINE:.2%}  ·  N=321 890
           </div>
         </div>""", unsafe_allow_html=True)
 
@@ -1026,19 +1117,22 @@ with tab5:
 
     # Variable contributions
     st.markdown("<div class='sec-div'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Contribution de chaque variable au score Z (Probit)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Contribution de chaque variable au score Z (Probit V4)</div>", unsafe_allow_html=True)
 
-    sect_coef = PROBIT_COEFS.get('SECT2_post2019' if (sect_choice == 2 and post2019)
-                                   else f'SECT_{sect_choice}', 0.0)
+    # For SECT_2, add interaction contribution separately
+    sect_coef_base = PROBIT_COEFS.get(f'SECT_{sect_choice}', 0.0)
+    sect_interaction = PROBIT_COEFS['ENG_log_SECT2'] * eng_log if sect_choice == 2 else 0.0
+
     contribs = {
-        'ENG':       PROBIT_COEFS['ENG']       * eng,
-        'CA_Confie': PROBIT_COEFS['CA_Confie'] * ca_confie,
-        'IMP':       PROBIT_COEFS['IMP']       * imp,
-        'GEL':       PROBIT_COEFS['GEL']       * gel,
-        'PR_log':    PROBIT_COEFS['PR_log']    * pr_log,
-        'AGIOS':     PROBIT_COEFS['AGIOS_bin'] * agios,
-        'Secteur':   sect_coef,
-        'Constante': PROBIT_COEFS['const'],
+        'ENG_log':         PROBIT_COEFS['ENG_log']       * eng_log,
+        'CA_Confie_log':   PROBIT_COEFS['CA_Confie_log'] * ca_log,
+        'IMP_log':         PROBIT_COEFS['IMP_log']       * imp_log,
+        'GEL_log':         PROBIT_COEFS['GEL_log']       * gel_log,
+        'PR_log':          PROBIT_COEFS['PR_log']        * pr_log,
+        'AGIOS_bin':       PROBIT_COEFS['AGIOS_bin']     * agios,
+        'Secteur (dummy)': sect_coef_base,
+        'ENG×SECT_2':      sect_interaction,
+        'Constante':       PROBIT_COEFS['const'],
     }
     max_abs_c = max(abs(v) for v in contribs.values()) or 1
 
@@ -1057,27 +1151,30 @@ with tab5:
           </div>
         </div>""", unsafe_allow_html=True)
 
-    # Reference profiles
+    # Reference profiles (from pipeline CHECK 10 economic sanity)
     st.markdown("<div class='sec-div'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Profils types de référence (pipeline final)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Profils types de référence — CHECK 10 Economic Sanity (pipeline final)</div>", unsafe_allow_html=True)
 
     profiles = [
-        ("Sain — Agri., sans incident",          {"eng":-1,"ca":0,"imp":-1,"gel":-1,"pr":-1,"agios":0,"sect":1,"post":True}),
-        ("Moyen — toutes vars à 0",              {"eng":0,"ca":0,"imp":0,"gel":0,"pr":0,"agios":0,"sect":9,"post":False}),
-        ("Modéré — AGIOS + Sect 2 (post-2019)", {"eng":0,"ca":0,"imp":0,"gel":0,"pr":0,"agios":1,"sect":2,"post":True}),
-        ("Élevé — impayés + prov. + Sect 2",    {"eng":0,"ca":0,"imp":2,"gel":1,"pr":1,"agios":1,"sect":2,"post":True}),
+        ("Sain — réf., sans incident",        {"eng": 1, "ca": 0, "imp":-1, "gel":-1, "pr":-1, "ag": 0, "sect": 1}),
+        ("Moyen — toutes vars à 0",            {"eng": 0, "ca": 0, "imp": 0, "gel": 0, "pr": 0, "ag": 0, "sect": 9}),
+        ("Modéré — SECT_2 + AGIOS",           {"eng": 0, "ca": 0, "imp": 0, "gel": 0, "pr": 0, "ag": 1, "sect": 2}),
+        ("Tendance — SECT_2+AGIOS+IMP",       {"eng": 0, "ca": 0, "imp": 1, "gel": 0, "pr": 0, "ag": 1, "sect": 2}),
+        ("Élevé — impayés + SECT_2",          {"eng":-1, "ca": 0, "imp": 2, "gel": 1, "pr": 1, "ag": 1, "sect": 2}),
+        ("Maximum — tous flags",              {"eng":-1, "ca": 0, "imp": 2, "gel": 2, "pr": 2, "ag": 1, "sect": 2}),
     ]
-    ref_pds = [3.5, 7.2, 12.3, 26.0]   # from final pipeline output
+    # Pipeline CHECK 10 reference values
+    ref_pds_pipeline = [0.0, 1.5, 6.0, 12.6, 66.7, 94.1]
 
-    prof_cols = st.columns(4)
-    for i, ((name, p), ref) in enumerate(zip(profiles, ref_pds)):
+    prof_cols = st.columns(6)
+    for i, ((name, p), ref) in enumerate(zip(profiles, ref_pds_pipeline)):
         pd_p, _ = calc_pd_probit(p['eng'], p['ca'], p['imp'], p['gel'],
-                                   p['pr'], p['agios'], p['sect'], p['post'])
+                                  p['pr'], p['ag'], p['sect'])
         c = "#22D3A3" if pd_p < .10 else ("#FBBF24" if pd_p < .25 else "#F87171")
         prof_cols[i].markdown(f"""<div class="card-sm" style="text-align:center;border-color:{c}30">
-          <div style="font-size:.75rem;color:#64748B;margin-bottom:.4rem;line-height:1.3">{name}</div>
-          <div style="font-family:Syne;font-size:1.6rem;font-weight:800;color:{c}">{pd_p:.1%}</div>
-          <div style="font-family:IBM Plex Mono;font-size:.72rem;color:#475569;margin-top:.2rem">
+          <div style="font-size:.72rem;color:#64748B;margin-bottom:.4rem;line-height:1.3">{name}</div>
+          <div style="font-family:Syne;font-size:1.4rem;font-weight:800;color:{c}">{pd_p:.1%}</div>
+          <div style="font-family:IBM Plex Mono;font-size:.68rem;color:#475569;margin-top:.2rem">
             réf pipeline: {ref:.1f}%
           </div>
         </div>""", unsafe_allow_html=True)
@@ -1089,8 +1186,8 @@ st.markdown(f"""
 <div style="margin-top:2.5rem;padding-top:1rem;border-top:1px solid #1E3050;
     text-align:center;font-family:IBM Plex Mono;font-size:.75rem;color:#475569;line-height:1.9">
   Stress Testing STB · Mémoire de Master ·
-  Modèle satellite : logit_NPL ~ AR(1) + PIB + Chômage_lag + COVID | HAC NW | N=17 (2008-2024) | R²adj=0.744 ·
-  Probit Stage 2 | AUC=0.9427 | Gini=0.8855 | N=327 571 | SECT2_post2019 ·
-  EAD={EAD_TOTAL/1e6:.1f} M TND | PD_base={PD_BASELINE:.2%} | LGD=45%
+  Satellite : logit_NPL ~ AR(1)+PIB+Chôm_lag+COVID | HAC NW 2 lags | N=17 (2008-2024) | R²adj=0.744 | 31 specs testées ·
+  Probit Stage 2 V4 | AUC=0.9890 | Gini=0.9781 | N=321 890 | 10/10 checks | ENG_log+ENG_log×SECT_2 ·
+  EAD={EAD_TOTAL/1e6:.1f} M TND | PD_base={PD_BASELINE:.2%} | LGD=45% | Coverage 2024=40.6% ⚠
 </div>
 """, unsafe_allow_html=True)
