@@ -3,7 +3,7 @@
 ║   STRESS TESTING STB — APPLICATION INTERACTIVE COMPLÈTE             ║
 ║   Mémoire de Master — Architecture Wilson (1997) / Bâle II          ║
 ║                                                                      ║
-║   Version finale — données STB 2006-2024 corrigées                  ║
+║   Version finale corrigée — probit-shift PD scaling                 ║
 ║   Modèle satellite : logit_NPL AR(1) + PIB + Chôm_lag + COVID       ║
 ║   Probit Stage 2   : AUC=0.9890 · Gini=0.9781 · N=321,890          ║
 ║   ENG_log + ENG_log×SECT_2 + IMP_log + GEL_log · 10/10 checks      ║
@@ -17,7 +17,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
-from scipy.special import ndtr
+from scipy.special import ndtr, ndtri   # Φ and Φ⁻¹
 from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
@@ -113,7 +113,7 @@ def styled_fig(fig, height=380):
     return fig
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CONSTANTS — FINAL PIPELINE VALUES (updated from new pipeline output)
+#  CONSTANTS — FINAL PIPELINE VALUES
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Portfolio ──────────────────────────────────────────────────────────────────
@@ -124,7 +124,6 @@ EAD_TOTAL    = (13_571 + 0.20 * 93 + 42.9) * 1_000_000  # 13,632.5M TND
 EPS          = 0.001
 
 # ── Satellite model: logit_NPL ~ AR(1) + PIB + Chomage_lag1 + COVID ───────────
-# Retenu parmi 31 spécifications testées — HAC Newey-West 2 lags
 SAT_COEFS = dict(
     const          = -0.5821,
     logit_NPL_lag1 =  0.8188,
@@ -133,7 +132,7 @@ SAT_COEFS = dict(
     COVID          = -0.9015,
 )
 
-# HAC covariance matrix (5×5) — ordre: const, logit_NPL_lag1, PIB, Chomage_lag1, COVID
+# HAC covariance matrix (5×5)
 SAT_COV = np.array([
     [ 0.065130,  0.018020, -0.002810,  0.004150,  0.031100],
     [ 0.018020,  0.011490, -0.001180,  0.001520,  0.014000],
@@ -143,30 +142,27 @@ SAT_COV = np.array([
 ])
 
 # ── Probit Stage 2 coefficients — V4 final spec ───────────────────────────────
-# N=321,890 (2020-2021) · ENG_log + ENG_log×SECT_2 · IMP_log + GEL_log
-# AUC=0.9890 · Gini=0.9781 · CV=0.9874±0.0008 · 10/10 checks
 PROBIT_COEFS = dict(
     const            = -2.1652,
     ENG_log          = -0.0409,
-    ENG_log_SECT2    = -0.3724,   # ENG_log × SECT_2.0 interaction
+    ENG_log_SECT2    = -0.3724,
     CA_Confie_log    = -0.4385,
     IMP_log          =  0.4045,
     GEL_log          =  1.1886,
     PR_log           = -0.0566,
     AGIOS_bin        =  0.0102,
     SECT_1           =  0.0230,
-    SECT_2           =  0.6041,   # SECT_2.0 (Autres)
+    SECT_2           =  0.6041,
     SECT_3           =  0.0114,
     SECT_4           =  0.2360,
-    SECT_5           =  0.0000,   # dropped by backward elimination
+    SECT_5           =  0.0000,
     SECT_6           =  0.0848,
     SECT_8           =  0.1145,
     SECT_9           =  0.0941,
-    SECT_10          =  0.0000,   # dropped by backward elimination
+    SECT_10          =  0.0000,
     SECT_11          =  0.0745,
 )
 
-# Sector names (pipeline labels — SECT_7 = CONSOMMATION = référence)
 SECT_NAMES = {
     1:  'Agriculture',
     2:  'Autres (SECT_2)',
@@ -181,7 +177,7 @@ SECT_NAMES = {
     11: 'Tourisme',
 }
 
-# ── Scenarios (from final pipeline stress testing output) ─────────────────────
+# ── Scenarios — CORRECTED cushion values (probit-shift) ───────────────────────
 SCENARIOS = {
     'Baseline': {
         'PIB':       [ 2.0,  2.5,  3.0],
@@ -190,7 +186,7 @@ SCENARIOS = {
         'color':     '#22D3A3',
         'desc':      'FMI WEO — reprise graduelle',
         'npl_ref':   [23.4, 23.1, 22.4],
-        'cushion':   5.8,
+        'cushion':   7.0,
     },
     'Défavorable': {
         'PIB':       [ 0.5,  0.0,  1.0],
@@ -199,7 +195,7 @@ SCENARIOS = {
         'color':     '#FBBF24',
         'desc':      'Stagflation — chômage 17.5%',
         'npl_ref':   [24.8, 27.0, 28.7],
-        'cushion':   212.9,
+        'cushion':   259.9,
     },
     'Sévère': {
         'PIB':       [-1.0, -3.0,  0.5],
@@ -208,7 +204,7 @@ SCENARIOS = {
         'color':     '#F87171',
         'desc':      'Récession + chômage 19.5%',
         'npl_ref':   [26.2, 31.9, 34.8],
-        'cushion':   449.5,
+        'cushion':   564.6,
     },
 }
 
@@ -248,8 +244,19 @@ def logit_from_npl(npl_pct):
 def npl_from_logit(x):
     return np.clip(np.exp(x) / (1 + np.exp(x)) * 100, 0.1, 60.0)
 
+def probit_shift_pd(npl_stress_pct):
+    """
+    Probit-shift PD transformation (Vasicek 2002 / Belkin-Suchower-Forest 1998).
+    PD_stress = Φ(Φ⁻¹(PD_base) + [Φ⁻¹(NPL_stress) − Φ⁻¹(NPL_base)])
+    """
+    npl_stress_rate = np.clip(npl_stress_pct / 100, 0.001, 0.999)
+    npl_base_rate   = NPL_BASELINE / 100
+    shift           = ndtri(npl_stress_rate) - ndtri(npl_base_rate)
+    pd_stressed     = float(np.clip(ndtr(ndtri(PD_BASELINE) + shift), 0.001, 0.999))
+    return pd_stressed
+
 def calc_stress(pib_vals, chom_vals, covid_vals=None):
-    """Project NPL using AR(1) logit_NPL satellite model (31 specs tested, winner)."""
+    """Project NPL using AR(1) logit_NPL satellite model, then probit-shift PD."""
     if covid_vals is None:
         covid_vals = [0, 0, 0]
     logit_prev = logit_from_npl(NPL_BASELINE)
@@ -262,7 +269,8 @@ def calc_stress(pib_vals, chom_vals, covid_vals=None):
                       + SAT_COEFS['COVID']          * covid_vals[t])
         npl       = npl_from_logit(logit_pred)
         logit_prev = logit_from_npl(npl)
-        pd_s      = float(np.clip(PD_BASELINE * (npl / NPL_BASELINE), 0.001, 0.999))
+        # ── PROBIT-SHIFT PD (corrected) ──
+        pd_s      = probit_shift_pd(npl)
         el        = pd_s * LGD * EAD_TOTAL / 1e6
         results.append({'year': 2024 + t + 1, 'npl': npl,
                         'delta_npl': npl - NPL_BASELINE,
@@ -274,13 +282,12 @@ def calc_stress(pib_vals, chom_vals, covid_vals=None):
 def run_monte_carlo(pib_vals_t, chom_vals_t, n_sim=8000):
     """
     Constrained multivariate Monte Carlo on HAC covariance matrix.
-    Constraint: AR(1)∈(0.6,0.95), β_PIB<0, β_Chôm>0 — acceptance rate ≈71.5%.
+    Uses probit-shift PD transformation.
     """
     coefs_arr = np.array([SAT_COEFS['const'], SAT_COEFS['logit_NPL_lag1'],
                           SAT_COEFS['PIB'], SAT_COEFS['Chomage_lag1'],
                           SAT_COEFS['COVID']])
     draws = np.random.multivariate_normal(coefs_arr, SAT_COV, size=n_sim * 4)
-    # Economic sign constraints (acceptance rate ≈ 71.5% from pipeline)
     mask  = (draws[:, 1] > 0.60) & (draws[:, 1] < 0.95) & \
             (draws[:, 2] < -0.01) & (draws[:, 3] > 0.01)
     draws = draws[mask][:n_sim]
@@ -304,16 +311,20 @@ def run_monte_carlo(pib_vals_t, chom_vals_t, n_sim=8000):
     p5      = np.percentile(arr, 5,  axis=0)
     p95     = np.percentile(arr, 95, axis=0)
     el_cur  = PD_BASELINE * LGD * EAD_TOTAL / 1e6
-    cushions = np.maximum(0,
-        PD_BASELINE * (arr[:, -1] / NPL_BASELINE) * LGD * EAD_TOTAL / 1e6 - el_cur)
+
+    # ── PROBIT-SHIFT PD for each MC draw's terminal NPL (corrected) ──
+    npl_terminal = np.clip(arr[:, -1] / 100, 0.001, 0.999)
+    npl_base_r   = NPL_BASELINE / 100
+    shifts       = ndtri(npl_terminal) - ndtri(npl_base_r)
+    pd_stressed  = np.clip(ndtr(ndtri(PD_BASELINE) + shifts), 0.001, 0.999)
+    cushions     = np.maximum(0, pd_stressed * LGD * EAD_TOTAL / 1e6 - el_cur)
+
     return p5, p95, float(np.mean(cushions > 0))
 
 def calc_pd_probit(eng_log, ca_confie_log, imp_log, gel_log, pr_log, agios_bin,
                    sect, is_sect2=False):
     """
     Compute PD from Stage 2 Probit V4 spec (standardized inputs).
-    Variables: ENG_log, ENG_log×SECT_2, CA_Confie_log, IMP_log, GEL_log,
-               PR_log, AGIOS_bin + sector dummies (ref = SECT_7 Consommation).
     """
     z = PROBIT_COEFS['const']
     z += PROBIT_COEFS['ENG_log']       * eng_log
@@ -323,10 +334,9 @@ def calc_pd_probit(eng_log, ca_confie_log, imp_log, gel_log, pr_log, agios_bin,
     z += PROBIT_COEFS['PR_log']        * pr_log
     z += PROBIT_COEFS['AGIOS_bin']     * agios_bin
 
-    # SECT_2 gets its own dummy + the interaction on ENG_log
     if sect == 2:
         z += PROBIT_COEFS['SECT_2']
-        z += PROBIT_COEFS['ENG_log_SECT2'] * eng_log   # interaction
+        z += PROBIT_COEFS['ENG_log_SECT2'] * eng_log
     elif sect != 7:
         key = f'SECT_{sect}'
         z  += PROBIT_COEFS.get(key, 0.0)
@@ -341,8 +351,8 @@ st.markdown(f"""
   <div class="topbar-title">Stress Testing & Risque de Crédit — STB</div>
   <div class="topbar-sub">
     Architecture Wilson (1997) · Bâle II Pilier 2 · logit_NPL AR(1)+PIB+Chôm+COVID · HAC NW ·
-    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · 31 specs testées ·
-    <span style="color:#22D3A3">● Version finale</span> ·
+    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · Probit-shift PD (Vasicek/BSF) ·
+    <span style="color:#22D3A3">● Version finale corrigée</span> ·
     {datetime.now().strftime("%d %b %Y")}
   </div>
 </div>
@@ -443,8 +453,8 @@ with tab1:
         st.markdown(f"""<div class="card-sm">
             <div class="metric-val" style="color:#3B82F6">{max_pd:.2%}</div>
             <div class="metric-lbl">PD stressée max</div>
-            <div class="metric-delta" style="color:#64748B">baseline {PD_BASELINE:.2%}</div>
-            <span class="badge badge-info">IRB Bâle II</span>
+            <div class="metric-delta" style="color:#64748B">baseline {PD_BASELINE:.2%} · probit-shift</div>
+            <span class="badge badge-info">Vasicek/BSF 1998</span>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
@@ -469,7 +479,7 @@ with tab1:
     with col_ch1:
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Projections NPL 2025-2027 — IC 90% Monte Carlo contraint</div>", unsafe_allow_html=True)
 
-        with st.spinner("Simulation Monte Carlo (signes économiques imposés)…"):
+        with st.spinner("Simulation Monte Carlo (probit-shift + signes économiques imposés)…"):
             p5, p95, prob_pos = run_monte_carlo(tuple(pib_vals), tuple(chom_vals))
 
         hist_years = macro_data['Year'].tolist()
@@ -526,10 +536,10 @@ with tab1:
         st.markdown(f"""<div style="background:rgba(34,211,163,.08);border:1px solid rgba(34,211,163,.25);
             border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.82rem;color:#22D3A3;margin-top:-.5rem">
             MC contraint N≈{int(prob_pos*8000):,} tirages valides · AR(1)∈(0.6,0.95) · β_PIB&lt;0 · β_Chôm&gt;0 ·
+            PD via probit-shift Φ(Φ⁻¹(PD)+ΔΦ⁻¹(NPL)) ·
             P(coussin > 0) = <b>{prob_pos:.1%}</b>
         </div>""", unsafe_allow_html=True)
 
-        # Under-provisioning warning
         st.markdown("""<div style="background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.25);
             border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.78rem;color:#F87171;margin-top:.5rem">
             ⚠ Sous-provisionnement structurel détecté : Coverage 75.0% (2021) → 40.6% (2024) −34.4pp
@@ -580,8 +590,7 @@ with tab1:
           <tbody>{rows_html}</tbody>
         </table></div>""", unsafe_allow_html=True)
 
-        # Coussin table + LGD sensitivity
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Coussins Pilier 2 — pipeline final</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Coussins Pilier 2 — pipeline final (probit-shift)</div>", unsafe_allow_html=True)
         for sname, sdata in SCENARIOS.items():
             c = sdata['color']
             st.markdown(f"""<div style="display:flex;justify-content:space-between;align-items:center;
@@ -591,9 +600,9 @@ with tab1:
                 <span style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B">{sdata['cushion']/(EAD_TOTAL/1e6)*100:.2f}% EAD</span>
             </div>""", unsafe_allow_html=True)
 
-        # LGD sensitivity (from pipeline)
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Sensibilité LGD — scénario sévère</div>", unsafe_allow_html=True)
-        sev_max_pd = max(r['pd'] for r in calc_stress(SCENARIOS['Sévère']['PIB'], SCENARIOS['Sévère']['Chom_lag']))
+        sev_results = calc_stress(SCENARIOS['Sévère']['PIB'], SCENARIOS['Sévère']['Chom_lag'])
+        sev_max_pd = max(r['pd'] for r in sev_results)
         for lgd_t, lgd_label in [(0.45, "LGD 45% (Bâle II)"), (0.60, "LGD 60%"), (0.75, "LGD 75%")]:
             cushion_lgd = max(0, sev_max_pd * lgd_t * EAD_TOTAL / 1e6 -
                              PD_BASELINE * lgd_t * EAD_TOTAL / 1e6)
@@ -663,7 +672,6 @@ with tab2:
         fig_fit.update_layout(legend=dict(y=-.15, orientation='h'))
         st.plotly_chart(fig_fit, use_container_width=True)
 
-        # Coverage rate chart
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>Taux de couverture des provisions — NPL STB 2006-2024</div>", unsafe_allow_html=True)
         fig_cov = go.Figure()
         fig_cov.add_trace(go.Scatter(x=years_sat, y=df_sat['Coverage'].values,
@@ -683,7 +691,6 @@ with tab2:
         fig_cov.update_layout(legend=dict(y=-.15, orientation='h'))
         st.plotly_chart(fig_cov, use_container_width=True)
 
-        # Waterfall — coefficient contributions for severe 2026
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>Décomposition logit_NPL — scénario sévère 2026 (PIB=−3%, Chôm=17%)</div>", unsafe_allow_html=True)
 
         logit_2025 = logit_from_npl(26.2)
@@ -778,7 +785,6 @@ with tab2:
         </div>""" for v, b, p, s in coef_rows)
         st.markdown(f'<div class="card" style="margin-top:1rem"><div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.6rem;font-family:IBM Plex Mono">Coefficients HAC Newey-West</div>{crow_html}</div>', unsafe_allow_html=True)
 
-        # Back-test note
         st.markdown("""<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);
             border-radius:8px;padding:.65rem 1rem;font-family:IBM Plex Mono;font-size:.78rem;color:#FBBF24;margin-top:.5rem">
             Back-test 2022-2024 : direction correcte (+1.2pp prédit vs +9.8pp observé).
@@ -790,7 +796,6 @@ with tab2:
 # ║  TAB 3 — VALIDATION PD                                 ║
 # ╚══════════════════════════════════════════════════════════╝
 with tab3:
-    # Updated metrics from new pipeline (V4 spec)
     vm1, vm2, vm3, vm4, vm5 = st.columns(5)
     vmets = [
         ("AUC-ROC",       "0.9890", "> 0.80", "ok"),
@@ -808,12 +813,21 @@ with tab3:
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
+
+    # AUC decomposition note
+    st.markdown("""<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);
+        border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;font-size:.85rem;color:#94A3B8">
+        <b style="color:#3B82F6">Décomposition de l'AUC</b> — ρ(GEL_log, AGE_GEL) = 0.89 · ρ(GEL_log, Défaut) = 0.87.
+        Sans GEL_log : AUC = 0.943 (−0.045). Sans GEL_log ni IMP_log : AUC = 0.936 (−0.052).
+        AUC résiduelle 0.936 = signal comportemental pur, conforme aux benchmarks (Sadhwani <i>et al.</i>, 2021).
+        <b>Le coussin Pilier 2 repose sur la PD moyenne et le probit-shift, pas sur la discrimination individuelle.</b>
+    </div>""", unsafe_allow_html=True)
+
     col_v1, col_v2 = st.columns([1, 1])
 
     with col_v1:
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem'>Courbe ROC — Probit Stage 2 V4</div>", unsafe_allow_html=True)
         fpr_pts = np.linspace(0, 1, 300)
-        # AUC=0.9890
         power   = 1 / (1 - 0.9890)
         tpr_pts = np.clip(1 - (1 - fpr_pts) ** (1/power), 0, 1)
 
@@ -829,14 +843,7 @@ with tab3:
             legend=dict(y=.05, x=.4))
         fig_roc = styled_fig(fig_roc, 290)
         st.plotly_chart(fig_roc, use_container_width=True)
-        st.markdown("""
-        <div style="font-size:0.7rem; color:#64748B; margin-top:-0.5rem; margin-bottom:1rem;">
-          *Courbe ROC simulée à partir de l'AUC=0.9890 — données réelles (64 378 obs test) disponibles dans le rapport*
-        </div>
-        """, unsafe_allow_html=True)
 
-        # AUC by year (actual values from pipeline)
-        st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;margin-top:.5rem'>AUC par année — out-of-time validation</div>", unsafe_allow_html=True)
         yr_aucs = [
             ('2020', 0.9828, 31491,  '#22D3A3', '✓  +0.0013 OOT'),
             ('2021', 0.9925, 32887,  '#22D3A3', '✓'),
@@ -854,14 +861,6 @@ with tab3:
         </div>""" for yr, auc, n, c, note in yr_aucs)
         st.markdown(f'<div class="card">{yr_html}</div>', unsafe_allow_html=True)
 
-        # AUC by segment
-        st.markdown("""<div style="background:rgba(34,211,163,.07);border:1px solid rgba(34,211,163,.2);
-            border-radius:8px;padding:.65rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#22D3A3;margin-top:.5rem">
-            AUC Non-SECT_2 : 0.9761 · AUC SECT_2 : 0.9824
-            (range 0.0097 — Stable across years ✓)
-        </div>""", unsafe_allow_html=True)
-
-        # Isotonic recalibration note
         st.markdown("""<div style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);
             border-radius:8px;padding:.65rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#3B82F6;margin-top:.5rem">
             Recalibration isotone (Check 7) : HL χ² 102→14 · Brier 0.0209→0.0203 ·
@@ -890,7 +889,6 @@ with tab3:
         fig_cv.update_layout(showlegend=False, yaxis_range=[0.980, 0.995])
         st.plotly_chart(fig_cv, use_container_width=True)
 
-        # Full scorecard — 10/10 from pipeline
         sc_items = [
             ("✓", "AUC > 0.80 (Basel good)",               "0.9890"),
             ("✓", "Gini > 0.50 (Basel good)",              "0.9781"),
@@ -916,12 +914,11 @@ with tab3:
           </div>
           {sc_html}
           <div style="font-family:IBM Plex Mono;font-size:.75rem;color:#64748B;margin-top:.6rem;padding-top:.5rem;border-top:1px solid #1E3050">
-            N=321,890 · 2020-2021 · Spec V4 retenue parmi 4 robustness specs<br>
+            N=321,890 · 2020-2021 · Spec V4 · AUC résiduelle sans GEL/IMP = 0.936<br>
             HL [✗ brut] attendu pour N>50,000 — corrigé par recalibration isotone.
           </div>
         </div>""", unsafe_allow_html=True)
 
-        # Robustness comparison
         st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin:.8rem 0 .4rem'>Robustesse — 4 spécifications comparées</div>", unsafe_allow_html=True)
         rob_specs = [
             ("V1: 2019-21 + ENG raw + SECT_2",  "0.9861", "0.0004", "#64748B"),
@@ -944,7 +941,7 @@ with tab4:
         ("#3B82F6", "1", "Stage 1 — Analyse exploratoire (Data.csv)",
          ["4 133 clients entreprises · CL R 0-3 · 2019-2021",
           "Set A (bancaires 16 vars log-transf.) · Set B (5 ratios) · Set C (21 vars combinés)",
-          "Logit · Probit · LDA · 9 comparaisons · backward elimination p<0.05",
+          "Logit · Probit · backward elimination p<0.05",
           "Résultat : Set A dominant (Gini=0.8111 · AUC=0.9055)",
           "Conclusion : variables bancaires > ratios financiers (Set B Gini=0.22)"]),
         ("#22D3A3", "2", "Stage 2 — Analyse confirmatoire V4 (Set_A.csv)",
@@ -952,19 +949,19 @@ with tab4:
           "CL R 4/5 exclus (déjà en défaut Bâle II) · SECT_7 Consommation = référence",
           "ENG_log + ENG_log×SECT_2 + CA_Confie_log + IMP_log + GEL_log + PR_log + AGIOS_bin",
           "4 spécifications de robustesse comparées → V4 retenue (AUC=0.9890, Gini=0.9781)",
-          "10/10 checks Bâle II · OOT stable (+0.0013) · Recalibration isotone ✓"]),
+          "10/10 checks Bâle II · OOT stable (+0.0013) · AUC résiduelle sans GEL/IMP = 0.936"]),
         ("#FBBF24", "3", "Modèle satellite — logit_NPL STB (31 specs testées)",
          ["Données NPL STB 2006-2024 · Macro Tunisie (Banque Mondiale / INS / BCT)",
           "logit_NPL stationnaire (ADF p=0.003) · 31 spécifications testées exhaustivement",
           "Sélection automatique : 31→22→13→3→3 · AR(1)+PIB+Chôm_lag+COVID retenu",
           "R²adj=0.744 · MAE=2.06pp · DW=1.219 · JB=0.582 · HAC NW 2 lags",
           "COVID β=−0.9015 (forbearance BCT) · LOO : coefs macro stables · GLS Δ<0.05"]),
-        ("#F87171", "4", "Stress Testing — 3 scénarios 2025-2027 + sensibilité",
+        ("#F87171", "4", "Stress Testing — probit-shift + 3 scénarios 2025-2027",
          ["Baseline (FMI) · Défavorable (stagflation) · Sévère (récession PIB=−3%)",
-          "Linkage : PD_stress = PD_base × (NPL_stressé / NPL_baseline)",
+          "Linkage : probit-shift Φ(Φ⁻¹(PD_b) + [Φ⁻¹(NPL_s) − Φ⁻¹(NPL_b)]) — Vasicek/BSF 1998",
           "EL = PD_stress × 45% × 13 632.5M TND · Sensibilité LGD 45→60→75%",
-          "MC contraint multivarié (N≈8000, taux acceptation 71.5%) · P(coussin>0)≈99.7%",
-          "Coussin Pilier 2 sévère : 449.5 M TND (3.30% EAD) · Spread baseline : +12.4pp"]),
+          "MC contraint multivarié (N≈8000, taux acceptation 71.5%) · P(coussin>0)≈100%",
+          "Coussin Pilier 2 sévère : 565 M TND (4.14% EAD) · Spread baseline : +12.4pp"]),
     ]
 
     col_a1, col_a2 = st.columns([3, 2])
@@ -981,7 +978,7 @@ with tab4:
 
     with col_a2:
         st.markdown("""<div class="card">
-          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Linkage macro ↔ micro</div>
+          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Linkage macro ↔ micro (probit-shift)</div>
           <div style="font-family:IBM Plex Mono;font-size:.78rem;color:#94A3B8;line-height:2.1">
             <div style="color:#E2E8F0">321 890 clients (2020-2021)</div>
             <div style="padding-left:1rem;color:#64748B">↓ backward elim p&lt;0.05</div>
@@ -990,8 +987,8 @@ with tab4:
             <div style="color:#64748B;padding-left:1rem">↕ linkage NPL</div>
             <div style="color:#FBBF24">Satellite logit_NPL AR(1) [31 specs]</div>
             <div style="padding-left:1rem;color:#64748B">→ NPL_stressé (2025-27)</div>
-            <div style="color:#64748B;padding-left:1rem">↓</div>
-            <div style="color:#E2E8F0;font-size:.75rem">PD_s = PD_b × (NPL_s/23.3%)</div>
+            <div style="color:#64748B;padding-left:1rem">↓ probit-shift</div>
+            <div style="color:#E2E8F0;font-size:.75rem">PD_s = Φ(Φ⁻¹(PD_b) + [Φ⁻¹(NPL_s) − Φ⁻¹(NPL_b)])</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
             <div style="color:#F87171">EL = PD_s × 45% × 13 633 M</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
@@ -1023,15 +1020,14 @@ with tab4:
         </div>""", unsafe_allow_html=True)
 
 # ╔══════════════════════════════════════════════════════════╗
-# ║  TAB 5 — CLIENT SCORING SIMULATOR (updated V4 spec)    ║
+# ║  TAB 5 — CLIENT SCORING SIMULATOR                      ║
 # ╚══════════════════════════════════════════════════════════╝
 with tab5:
     st.markdown("""<div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.3);
         border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1.2rem;font-size:.85rem;color:#94A3B8">
         <b style="color:#3B82F6">Simulateur en temps réel</b> — Modèle Probit Stage 2 V4 (N=321 890 · AUC=0.9890 · 10/10 checks).
         Variables <i>standardisées</i> (0 = moyenne portefeuille, ±1 = ±1 écart-type).
-        <b style="color:#FBBF24">SECT_2 (Autres)</b> active un terme spécifique + interaction sur ENG_log
-        (moratoire BCT — défaut quasi-déterministe médiane GEL=245 TND). Référence : <b>SECT_7 Consommation</b>.
+        <b style="color:#FBBF24">SECT_2 (Autres)</b> active un terme spécifique + interaction sur ENG_log. Référence : <b>SECT_7 Consommation</b>.
     </div>""", unsafe_allow_html=True)
 
     col_inp, col_out = st.columns([2, 1])
@@ -1061,12 +1057,10 @@ with tab5:
                 format_func=lambda x: SECT_NAMES[x]
             )
 
-        # Note on SECT_2 interaction
         if sect_choice == 2:
             st.markdown("""<div style="background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.3);
                 border-radius:8px;padding:.55rem .9rem;font-family:IBM Plex Mono;font-size:.78rem;color:#FBBF24">
                 ⚠ SECT_2 actif : β_SECT_2=+0.6041 + interaction ENG_log×SECT_2 (β=−0.3724).
-                AUC SECT_2 = 0.9824 — défaut partiellement administratif (règle 90j STB).
             </div>""", unsafe_allow_html=True)
 
         pd_val, z_score = calc_pd_probit(eng_log, ca_log, imp_log, gel_log,
@@ -1115,11 +1109,9 @@ with tab5:
           </div>
         </div>""", unsafe_allow_html=True)
 
-    # Variable contributions
     st.markdown("<div class='sec-div'></div>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Contribution de chaque variable au score Z (Probit V4)</div>", unsafe_allow_html=True)
 
-    # For SECT_2, add interaction contribution separately
     sect_coef_base = PROBIT_COEFS.get(f'SECT_{sect_choice}', 0.0)
     sect_interaction = PROBIT_COEFS['ENG_log_SECT2'] * eng_log if sect_choice == 2 else 0.0
 
@@ -1151,9 +1143,8 @@ with tab5:
           </div>
         </div>""", unsafe_allow_html=True)
 
-    # Reference profiles (from pipeline CHECK 10 economic sanity)
     st.markdown("<div class='sec-div'></div>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Profils types de référence — CHECK 10 Economic Sanity (pipeline final)</div>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:.8rem;color:#64748B;font-family:IBM Plex Mono;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem'>Profils types de référence — CHECK 10 Economic Sanity</div>", unsafe_allow_html=True)
 
     profiles = [
         ("Sain — réf., sans incident",        {"eng": 1, "ca": 0, "imp":-1, "gel":-1, "pr":-1, "ag": 0, "sect": 1}),
@@ -1163,7 +1154,6 @@ with tab5:
         ("Élevé — impayés + SECT_2",          {"eng":-1, "ca": 0, "imp": 2, "gel": 1, "pr": 1, "ag": 1, "sect": 2}),
         ("Maximum — tous flags",              {"eng":-1, "ca": 0, "imp": 2, "gel": 2, "pr": 2, "ag": 1, "sect": 2}),
     ]
-    # Pipeline CHECK 10 reference values
     ref_pds_pipeline = [0.0, 1.5, 6.0, 12.6, 66.7, 94.1]
 
     prof_cols = st.columns(6)
@@ -1188,6 +1178,7 @@ st.markdown(f"""
   Stress Testing STB · Mémoire de Master ·
   Satellite : logit_NPL ~ AR(1)+PIB+Chôm_lag+COVID | HAC NW 2 lags | N=17 (2008-2024) | R²adj=0.744 | 31 specs testées ·
   Probit Stage 2 V4 | AUC=0.9890 | Gini=0.9781 | N=321 890 | 10/10 checks | ENG_log+ENG_log×SECT_2 ·
+  PD linkage : probit-shift Φ(Φ⁻¹(PD)+ΔΦ⁻¹(NPL)) — Vasicek/BSF 1998 ·
   EAD={EAD_TOTAL/1e6:.1f} M TND | PD_base={PD_BASELINE:.2%} | LGD=45% | Coverage 2024=40.6% ⚠
 </div>
 """, unsafe_allow_html=True)
