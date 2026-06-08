@@ -116,12 +116,21 @@ def styled_fig(fig, height=380):
 #  CONSTANTS — FINAL PIPELINE VALUES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# ── Portfolio ──────────────────────────────────────────────────────────────────
+# ── Estimation anchors (2020-2021: when the Probit model was estimated) ────────
+PD_EST       = 0.1484                    # Probit Stage 2 default rate on active portfolio
+NPL_EST      = (14.9 + 13.5) / 2        # Average STB NPL during estimation = 14.2%
+
+# ── Portfolio 2024 ─────────────────────────────────────────────────────────────
 NPL_BASELINE = 23.3          # STB 2024 observé
-PD_BASELINE  = 0.1484        # Stage 2 Probit baseline PD (14.84%)
 LGD          = 0.45          # Basel II corporate floor
 EAD_TOTAL    = (13_571 + 0.20 * 93 + 42.9) * 1_000_000  # 13,632.5M TND
 EPS          = 0.001
+
+# ── Re-base PD to 2024 via probit-shift (consistent pair) ─────────────────────
+#    PD_2024 = Φ(Φ⁻¹(PD_EST) + [Φ⁻¹(NPL_2024) - Φ⁻¹(NPL_EST)])
+PD_BASELINE  = float(ndtr(
+    ndtri(PD_EST) + ndtri(NPL_BASELINE / 100) - ndtri(NPL_EST / 100)
+))  # ≈ 0.2417 (24.17%) — matched pair with NPL_BASELINE = 23.3%
 
 # ── Satellite model: logit_NPL ~ AR(1) + PIB + Chomage_lag1 + COVID ───────────
 SAT_COEFS = dict(
@@ -186,7 +195,7 @@ SCENARIOS = {
         'color':     '#22D3A3',
         'desc':      'FMI WEO — reprise graduelle',
         'npl_ref':   [23.4, 23.1, 22.4],
-        'cushion':   7.0,
+        'cushion':   9.0,
     },
     'Défavorable': {
         'PIB':       [ 0.5,  0.0,  1.0],
@@ -195,7 +204,7 @@ SCENARIOS = {
         'color':     '#FBBF24',
         'desc':      'Stagflation — chômage 17.5%',
         'npl_ref':   [24.8, 27.0, 28.7],
-        'cushion':   259.9,
+        'cushion':   339.0,
     },
     'Sévère': {
         'PIB':       [-1.0, -3.0,  0.5],
@@ -204,7 +213,7 @@ SCENARIOS = {
         'color':     '#F87171',
         'desc':      'Récession + chômage 19.5%',
         'npl_ref':   [26.2, 31.9, 34.8],
-        'cushion':   564.6,
+        'cushion':   715.0,
     },
 }
 
@@ -351,7 +360,8 @@ st.markdown(f"""
   <div class="topbar-title">Stress Testing & Risque de Crédit — STB</div>
   <div class="topbar-sub">
     Architecture Wilson (1997) · Bâle II Pilier 2 · logit_NPL AR(1)+PIB+Chôm+COVID · HAC NW ·
-    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · Probit-shift PD (Vasicek/BSF) ·
+    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · PD re-basée 2024 ({PD_BASELINE:.1%}) ·
+    Probit-shift cohérent (Vasicek/BSF) ·
     <span style="color:#22D3A3">● Version finale corrigée</span> ·
     {datetime.now().strftime("%d %b %Y")}
   </div>
@@ -453,8 +463,8 @@ with tab1:
         st.markdown(f"""<div class="card-sm">
             <div class="metric-val" style="color:#3B82F6">{max_pd:.2%}</div>
             <div class="metric-lbl">PD stressée max</div>
-            <div class="metric-delta" style="color:#64748B">baseline {PD_BASELINE:.2%} · probit-shift</div>
-            <span class="badge badge-info">Vasicek/BSF 1998</span>
+            <div class="metric-delta" style="color:#64748B">baseline {PD_BASELINE:.2%} (re-basé) · probit-shift</div>
+            <span class="badge badge-info">PD_est={PD_EST:.2%} → {PD_BASELINE:.2%}</span>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("<div style='height:1.2rem'></div>", unsafe_allow_html=True)
@@ -958,10 +968,11 @@ with tab4:
           "COVID β=−0.9015 (forbearance BCT) · LOO : coefs macro stables · GLS Δ<0.05"]),
         ("#F87171", "4", "Stress Testing — probit-shift + 3 scénarios 2025-2027",
          ["Baseline (FMI) · Défavorable (stagflation) · Sévère (récession PIB=−3%)",
-          "Linkage : probit-shift Φ(Φ⁻¹(PD_b) + [Φ⁻¹(NPL_s) − Φ⁻¹(NPL_b)]) — Vasicek/BSF 1998",
+          "Re-basing PD : Φ(Φ⁻¹(14.84%) + [Φ⁻¹(23.3%) − Φ⁻¹(14.2%)]) = 24.17%",
+          "Linkage : probit-shift Φ(Φ⁻¹(PD_2024) + [Φ⁻¹(NPL_s) − Φ⁻¹(NPL_b)]) — Vasicek/BSF 1998",
           "EL = PD_stress × 45% × 13 632.5M TND · Sensibilité LGD 45→60→75%",
-          "MC contraint multivarié (N≈8000, taux acceptation 71.5%) · P(coussin>0)≈100%",
-          "Coussin Pilier 2 sévère : 565 M TND (4.14% EAD) · Spread baseline : +12.4pp"]),
+          "MC contraint multivarié (N≈8000, taux acceptation 71.5%)",
+          "Coussin Pilier 2 sévère : 715 M TND (5.25% EAD)"]),
     ]
 
     col_a1, col_a2 = st.columns([3, 2])
@@ -978,22 +989,24 @@ with tab4:
 
     with col_a2:
         st.markdown("""<div class="card">
-          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Linkage macro ↔ micro (probit-shift)</div>
+          <div style="font-size:.72rem;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.8rem;font-family:IBM Plex Mono">Linkage macro ↔ micro (probit-shift cohérent)</div>
           <div style="font-family:IBM Plex Mono;font-size:.78rem;color:#94A3B8;line-height:2.1">
             <div style="color:#E2E8F0">321 890 clients (2020-2021)</div>
             <div style="padding-left:1rem;color:#64748B">↓ backward elim p&lt;0.05</div>
             <div style="color:#3B82F6">Probit Stage 2 V4</div>
-            <div style="padding-left:1rem;color:#64748B">→ PD_baseline = 14.84%</div>
+            <div style="padding-left:1rem;color:#64748B">→ PD_est = {PD_EST:.2%} (NPL_est ≈ {NPL_EST:.1f}%)</div>
+            <div style="color:#64748B;padding-left:1rem">↓ probit-shift re-basing</div>
+            <div style="color:#E2E8F0;font-size:.75rem">PD_2024 = Φ(Φ⁻¹({PD_EST:.2%}) + [Φ⁻¹(23.3%) − Φ⁻¹({NPL_EST:.1f}%)]) = <b>{PD_BASELINE:.2%}</b></div>
             <div style="color:#64748B;padding-left:1rem">↕ linkage NPL</div>
             <div style="color:#FBBF24">Satellite logit_NPL AR(1) [31 specs]</div>
             <div style="padding-left:1rem;color:#64748B">→ NPL_stressé (2025-27)</div>
-            <div style="color:#64748B;padding-left:1rem">↓ probit-shift</div>
-            <div style="color:#E2E8F0;font-size:.75rem">PD_s = Φ(Φ⁻¹(PD_b) + [Φ⁻¹(NPL_s) − Φ⁻¹(NPL_b)])</div>
+            <div style="color:#64748B;padding-left:1rem">↓ probit-shift (paire cohérente)</div>
+            <div style="color:#E2E8F0;font-size:.75rem">PD_s = Φ(Φ⁻¹({PD_BASELINE:.2%}) + [Φ⁻¹(NPL_s) − Φ⁻¹(23.3%)])</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
             <div style="color:#F87171">EL = PD_s × 45% × 13 633 M</div>
             <div style="color:#64748B;padding-left:1rem">↓</div>
             <div style="color:#22D3A3">Coussin = EL_stress − EL_base</div>
-            <div style="color:#64748B;padding-left:1rem">+ Sensibilité LGD 45/60/75%</div>
+            <div style="color:#64748B;padding-left:1rem">EL_base = {PD_BASELINE:.2%} × 45% × EAD</div>
           </div>
         </div>""", unsafe_allow_html=True)
 
@@ -1178,7 +1191,7 @@ st.markdown(f"""
   Stress Testing STB · Mémoire de Master ·
   Satellite : logit_NPL ~ AR(1)+PIB+Chôm_lag+COVID | HAC NW 2 lags | N=17 (2008-2024) | R²adj=0.744 | 31 specs testées ·
   Probit Stage 2 V4 | AUC=0.9890 | Gini=0.9781 | N=321 890 | 10/10 checks | ENG_log+ENG_log×SECT_2 ·
-  PD linkage : probit-shift Φ(Φ⁻¹(PD)+ΔΦ⁻¹(NPL)) — Vasicek/BSF 1998 ·
-  EAD={EAD_TOTAL/1e6:.1f} M TND | PD_base={PD_BASELINE:.2%} | LGD=45% | Coverage 2024=40.6% ⚠
+  PD linkage : probit-shift cohérent · PD_est={PD_EST:.2%} (NPL~{NPL_EST:.1f}%) → PD_2024={PD_BASELINE:.2%} (NPL=23.3%) ·
+  EAD={EAD_TOTAL/1e6:.1f} M TND | LGD=45% | Coverage 2024=40.6% ⚠
 </div>
 """, unsafe_allow_html=True)
