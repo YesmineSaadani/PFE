@@ -359,10 +359,6 @@ st.markdown(f"""
 <div class="topbar">
   <div class="topbar-title">Stress Testing & Risque de Crédit — STB</div>
   <div class="topbar-sub">
-    Architecture Wilson (1997) · Bâle II Pilier 2 · logit_NPL AR(1)+PIB+Chôm+COVID · HAC NW ·
-    Probit V4 : ENG_log+ENG×SECT_2+IMP_log+GEL_log · N=321,890 · PD re-basée 2024 ({PD_BASELINE:.1%}) ·
-    Probit-shift cohérent (Vasicek/BSF) ·
-    <span style="color:#22D3A3">● Version finale corrigée</span> ·
     {datetime.now().strftime("%d %b %Y")}
   </div>
 </div>
