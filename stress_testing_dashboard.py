@@ -1183,10 +1183,6 @@ with tab5:
 st.markdown(f"""
 <div style="margin-top:2.5rem;padding-top:1rem;border-top:1px solid #1E3050;
     text-align:center;font-family:IBM Plex Mono;font-size:.75rem;color:#475569;line-height:1.9">
-  Stress Testing STB · Mémoire de Master ·
-  Satellite : logit_NPL ~ AR(1)+PIB+Chôm_lag+COVID | HAC NW 2 lags | N=17 (2008-2024) | R²adj=0.744 | 31 specs testées ·
-  Probit Stage 2 V4 | AUC=0.9890 | Gini=0.9781 | N=321 890 | 10/10 checks | ENG_log+ENG_log×SECT_2 ·
-  PD linkage : probit-shift cohérent · PD_est={PD_EST:.2%} (NPL~{NPL_EST:.1f}%) → PD_2024={PD_BASELINE:.2%} (NPL=23.3%) ·
-  EAD={EAD_TOTAL/1e6:.1f} M TND | LGD=45% | Coverage 2024=40.6% ⚠
+  
 </div>
 """, unsafe_allow_html=True)
