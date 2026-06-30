@@ -359,7 +359,6 @@ st.markdown(f"""
 <div class="topbar">
   <div class="topbar-title">Stress Testing & Risque de Crédit — STB</div>
   <div class="topbar-sub">
-    {datetime.now().strftime("%d %b %Y")}
   </div>
 </div>
 """, unsafe_allow_html=True)
